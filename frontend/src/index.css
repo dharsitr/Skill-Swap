@@ -1,0 +1,144 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root,
+  .dark {
+    /* ==========================================================================
+       SkillSwap Premium Design Tokens
+       ========================================================================== */
+    --background: 222 47% 8%;       /* #0B1220 Midnight Navy */
+    --foreground: 40 33% 96%;       /* #F8F5ED Warm Ivory */
+    --card: 222 38% 11%;            /* #111827 Deep Navy */
+    --card-foreground: 40 33% 96%;  /* #F8F5ED Warm Ivory */
+    --popover: 222 38% 11%;         /* #111827 Deep Navy */
+    --popover-foreground: 40 33% 96%;
+    --primary: 160 84% 39%;         /* #10B981 Emerald */
+    --primary-foreground: 200 62% 6%;/* #06131A Dark Ink */
+    --secondary: 217 33% 17%;       /* #1E293B Slate Navy */
+    --secondary-foreground: 214 32% 87%; /* #CBD5E1 Soft Slate */
+    --muted: 217 33% 17%;           /* #1E293B */
+    --muted-foreground: 215 16% 65%;/* #94A3B8 Muted Slate */
+    --accent: 40 54% 62%;           /* #D4AF6A Champagne Gold */
+    --accent-foreground: 222 47% 8%;
+    --destructive: 0 84% 60%;       /* #EF4444 Error Red */
+    --destructive-foreground: 0 0% 100%;
+    --border: 217 33% 20%;          /* rgba(148, 163, 184, 0.15) */
+    --input: 222 38% 11%;           /* #111827 */
+    --ring: 160 84% 39%;            /* #10B981 */
+    --radius: 0.875rem;             /* 14px */
+  }
+
+  .light {
+    --background: 220 20% 98%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+    --primary: 160 84% 39%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 214 32% 91%;
+    --secondary-foreground: 222 47% 11%;
+    --muted: 214 32% 91%;
+    --muted-foreground: 215 16% 47%;
+    --accent: 40 54% 50%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 214 32% 88%;
+    --input: 214 32% 88%;
+    --ring: 160 84% 39%;
+    --radius: 0.875rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-[#0B1220] text-[#CBD5E1];
+    font-feature-settings: "rlig" 1, "calt" 1;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background-color: #0B1220;
+    background-image: 
+      radial-gradient(circle at top right, rgba(16, 185, 129, 0.07), transparent 35%),
+      radial-gradient(circle at top left, rgba(212, 175, 106, 0.04), transparent 30%),
+      radial-gradient(circle at 50% 100%, rgba(30, 41, 59, 0.20), transparent 45%);
+    background-attachment: fixed;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+    color: #F8F5ED;
+    letter-spacing: -0.02em;
+  }
+}
+
+/* ==========================================================================
+   Surfaces & Premium Elevation
+   ========================================================================== */
+
+/* Primary Card with Subtle Champagne Gold or Slate Border */
+.glass-card {
+  background: #111827;
+  border: 1px solid rgba(212, 175, 106, 0.22);
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.45);
+  border-radius: 0.875rem;
+  transition: transform 200ms cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 200ms ease,
+              box-shadow 200ms ease;
+}
+
+.glass-card:hover {
+  transform: translateY(-1px);
+  border-color: rgba(212, 175, 106, 0.35);
+  box-shadow: 0 8px 28px -4px rgba(0, 0, 0, 0.55), 0 0 12px rgba(212, 175, 106, 0.06);
+}
+
+/* Elevated Panel / Container */
+.glass-panel {
+  background: rgba(17, 24, 39, 0.94);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  box-shadow: 0 4px 16px -2px rgba(0, 0, 0, 0.35);
+  border-radius: 0.875rem;
+}
+
+/* Secondary Container */
+.slate-panel {
+  background: #1E293B;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  border-radius: 0.75rem;
+}
+
+/* Typography Gradient (Sophisticated Warm Ivory to Champagne Accent) */
+.gradient-text {
+  background: linear-gradient(135deg, #F8F5ED 0%, #E2E8F0 50%, #D4AF6A 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.emerald-gradient-text {
+  background: linear-gradient(135deg, #F8F5ED 0%, #34D399 70%, #10B981 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Subtle Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0B1220;
+}
+::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
