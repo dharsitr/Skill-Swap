@@ -4,6 +4,16 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useApp } from "@/context/AppContext";
+import { useAuth } from "@/context/AuthContext";
+import {
+  profileService,
+  storageService,
+  skillService,
+  availabilityService,
+  DAY_INDEX_MAP,
+  SLOT_TIME_MAP,
+} from "@/lib/supabase/services";
+import { AvailabilityInsert } from "@/types/database.types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -21,6 +31,7 @@ import {
   SESSION_DURATIONS,
   LOCATIONS,
   TIMEZONES,
+  SkillItem,
 } from "@/data/mockData";
 import {
   Sparkles,
@@ -40,7 +51,19 @@ import {
   Briefcase,
   BookOpen,
   Calendar,
+  Loader2,
 } from "lucide-react";
+
+const HEADLINE_SUGGESTIONS = [
+  "Full Stack Developer",
+  "UI/UX Designer",
+  "Frontend Engineer",
+  "Software Engineer",
+  "Product Manager",
+  "Data Scientist",
+  "CS Student & Learner",
+  "Language & Culture Enthusiast",
+] as const;
 
 export function OnboardingView() {
   const router = useRouter();
@@ -54,6 +77,7 @@ export function OnboardingView() {
     awardWelcomeCredits,
     showToast,
   } = useApp();
+  const { user, refreshProfile } = useAuth();
 
   // Search & category states
   const [teachSearch, setTeachSearch] = useState("");
@@ -61,6 +85,92 @@ export function OnboardingView() {
 
   const [learnSearch, setLearnSearch] = useState("");
   const [learnCategory, setLearnCategory] = useState("All");
+
+  // Dynamic catalog and loading states
+  const [catalogSkills, setCatalogSkills] = useState<SkillItem[]>([...POPULAR_SKILLS]);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [isFinishing, setIsFinishing] = useState(false);
+
+  // Load existing profile & skills from Supabase on mount if authenticated
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadInitialData() {
+      try {
+        // 1. Fetch catalog skills from Supabase
+        const catRes = await skillService.getAllSkills();
+        if (mounted && catRes.data && catRes.data.length > 0) {
+          const existingNames = new Set(POPULAR_SKILLS.map((p) => p.name.toLowerCase()));
+          const combined = [...POPULAR_SKILLS];
+          catRes.data.forEach((s, idx) => {
+            if (!existingNames.has(s.name.toLowerCase())) {
+              combined.push({
+                id: s.id,
+                name: s.name,
+                category: s.category as SkillItem["category"],
+                icon: "Code2",
+                learners: `${Math.floor(4 + (idx % 8) * 1.5)}k learners`,
+                badgeColor: "bg-indigo-50 text-indigo-700 border-indigo-100",
+              });
+            }
+          });
+          setCatalogSkills(combined);
+        }
+
+        // 2. Fetch authenticated user data if returning
+        if (user?.id) {
+          const profileRes = await profileService.getProfile(user.id);
+          if (mounted && profileRes.data) {
+            const p = profileRes.data;
+            updateOnboardingData({
+              fullName: p.display_name || user.user_metadata?.full_name || onboardingData.fullName,
+              headline: p.headline || "",
+              bio: p.bio || "",
+              avatarUrl: p.avatar_url || onboardingData.avatarUrl,
+              location: p.location || onboardingData.location,
+              timezone: p.timezone || onboardingData.timezone,
+            });
+          }
+
+          const userSkillsRes = await skillService.getUserSkills(user.id);
+          if (mounted && userSkillsRes.data && userSkillsRes.data.length > 0) {
+            const teach = userSkillsRes.data
+              .filter((s) => s.type === "teach")
+              .map((s) => s.skill?.name)
+              .filter(Boolean) as string[];
+            const learn = userSkillsRes.data
+              .filter((s) => s.type === "learn")
+              .map((s) => s.skill?.name)
+              .filter(Boolean) as string[];
+            if (teach.length > 0) updateOnboardingData({ teachingSkills: teach });
+            if (learn.length > 0) updateOnboardingData({ learningSkills: learn });
+          }
+
+          const availRes = await availabilityService.getUserAvailability(user.id);
+          if (mounted && availRes.data && availRes.data.length > 0) {
+            const daysSet = new Set<string>();
+            availRes.data.forEach((slot) => {
+              const dayName = Object.keys(DAY_INDEX_MAP).find(
+                (k) => DAY_INDEX_MAP[k] === slot.day_of_week
+              );
+              if (dayName) daysSet.add(dayName);
+            });
+            if (daysSet.size > 0) {
+              updateOnboardingData({ availableDays: Array.from(daysSet) });
+            }
+          }
+        }
+      } catch {
+        // Non-blocking
+      }
+    }
+
+    loadInitialData();
+
+    return () => {
+      mounted = false;
+    };
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Step 3 validation errors
   const [profileErrors, setProfileErrors] = useState<{ fullName?: string; headline?: string; bio?: string }>({});
@@ -130,22 +240,39 @@ export function OnboardingView() {
   };
 
   // Step 3: Avatar upload handler
-  const handleAvatarFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        showToast("Please choose an image under 5MB.", "error");
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      showToast("Please choose an image under 5MB.", "error");
+      return;
+    }
+
+    if (user?.id) {
+      setIsUploadingAvatar(true);
+      const res = await storageService.uploadAvatar(user.id, file);
+      setIsUploadingAvatar(false);
+
+      if (res.data?.publicUrl) {
+        updateOnboardingData({ avatarUrl: res.data.publicUrl });
+        showToast("Profile photo uploaded to storage successfully!");
         return;
       }
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        if (event.target?.result) {
-          updateOnboardingData({ avatarUrl: event.target.result as string });
-          showToast("Profile photo updated successfully!");
-        }
-      };
-      reader.readAsDataURL(file);
+      if (res.error) {
+        showToast(res.error, "error");
+      }
     }
+
+    // Fallback preview
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      if (event.target?.result) {
+        updateOnboardingData({ avatarUrl: event.target.result as string });
+        showToast("Profile photo preview updated!");
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   // Step 4: Toggle available days
@@ -244,21 +371,67 @@ export function OnboardingView() {
     }
   };
 
-  const handleFinishOnboarding = () => {
+  const handleFinishOnboarding = async () => {
+    setIsFinishing(true);
+
+    if (user?.id) {
+      try {
+        // 1. Persist full profile to Supabase
+        await profileService.updateProfile(user.id, {
+          display_name: onboardingData.fullName,
+          headline: onboardingData.headline,
+          bio: onboardingData.bio,
+          avatar_url: onboardingData.avatarUrl,
+          location: onboardingData.location,
+          timezone: onboardingData.timezone,
+        });
+
+        // 2. Persist teaching and learning skills to user_skills
+        await skillService.syncUserSkills(
+          user.id,
+          onboardingData.teachingSkills,
+          onboardingData.learningSkills
+        );
+
+        // 3. Persist availability slots to availability table
+        const slots: AvailabilityInsert[] = [];
+        for (const day of onboardingData.availableDays) {
+          const dayIdx = DAY_INDEX_MAP[day] ?? 1;
+          for (const slotName of onboardingData.preferredSlots) {
+            const times = SLOT_TIME_MAP[slotName] || { start: "09:00:00", end: "12:00:00" };
+            slots.push({
+              user_id: user.id,
+              day_of_week: dayIdx,
+              start_time: times.start,
+              end_time: times.end,
+            });
+          }
+        }
+        if (slots.length > 0) {
+          await availabilityService.syncUserAvailability(user.id, slots);
+        }
+
+        await refreshProfile();
+      } catch (err) {
+        console.warn("[OnboardingView] Supabase sync note:", err);
+      }
+    }
+
+    setIsFinishing(false);
     showToast("Welcome to your dashboard! 50 Credits have been deposited.");
     setActiveTab("dashboard");
     setActiveScreen("dashboard");
     router.push("/dashboard");
   };
 
-  // Filter skills
-  const filteredTeachSkills = POPULAR_SKILLS.filter((s) => {
+  // Filter skills from dynamic catalog
+  const filteredTeachSkills = catalogSkills.filter((s) => {
     const matchesCat = teachCategory === "All" || s.category === teachCategory;
     const matchesQuery = s.name.toLowerCase().includes(teachSearch.toLowerCase());
     return matchesCat && matchesQuery;
   });
 
-  const filteredLearnSkills = POPULAR_SKILLS.filter((s) => {
+  const filteredLearnSkills = catalogSkills.filter((s) => {
     const matchesCat = learnCategory === "All" || s.category === learnCategory;
     const matchesQuery = s.name.toLowerCase().includes(learnSearch.toLowerCase());
     return matchesCat && matchesQuery;
@@ -604,9 +777,14 @@ export function OnboardingView() {
 
             {/* Avatar Selector UI */}
             <div className="mb-8 p-5 rounded-2xl bg-slate-50 border border-slate-200/80">
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-3">
-                Choose or Upload Profile Photo
-              </label>
+              <div className="flex items-center justify-between mb-3">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
+                  Choose or Upload Profile Photo
+                </label>
+                <span className="text-[11px] font-medium text-slate-500">
+                  Select an avatar or upload your own
+                </span>
+              </div>
               <div className="flex flex-wrap items-center gap-4">
                 <Avatar src={onboardingData.avatarUrl} size="xl" className="ring-4 ring-indigo-500/20 shadow-md" />
 
@@ -616,66 +794,114 @@ export function OnboardingView() {
                       key={idx}
                       type="button"
                       onClick={() => updateOnboardingData({ avatarUrl: url })}
-                      className={`h-12 w-12 rounded-full overflow-hidden border-2 transition-all cursor-pointer ${
+                      className={`h-12 w-12 rounded-full overflow-hidden border-2 transition-all cursor-pointer relative bg-slate-100 ${
                         onboardingData.avatarUrl === url
-                          ? "border-indigo-600 ring-2 ring-indigo-500/30 scale-105"
-                          : "border-slate-200 hover:border-slate-300 opacity-70 hover:opacity-100"
+                          ? "border-indigo-600 ring-2 ring-indigo-500/30 scale-105 shadow-sm"
+                          : "border-slate-200 hover:border-slate-300 opacity-80 hover:opacity-100"
                       }`}
+                      title={`Select Avatar ${idx + 1}`}
                     >
-                      <img src={url} alt={`Avatar ${idx + 1}`} className="h-full w-full object-cover" />
+                      <img
+                        src={url}
+                        alt={`Avatar ${idx + 1}`}
+                        className="h-full w-full object-cover"
+                        loading="eager"
+                      />
                     </button>
                   ))}
 
-                  <label className="h-12 px-4 rounded-full border border-dashed border-indigo-300 hover:border-indigo-600 bg-indigo-50/50 hover:bg-indigo-50 flex items-center justify-center gap-1.5 text-xs font-bold text-indigo-700 cursor-pointer transition-colors shadow-xs">
-                    <Upload className="h-3.5 w-3.5" />
-                    <span>Upload Photo</span>
+                  <label
+                    className={`h-12 px-4 rounded-full border border-dashed border-indigo-300 hover:border-indigo-600 bg-indigo-50/50 hover:bg-indigo-50 flex items-center justify-center gap-1.5 text-xs font-bold text-indigo-700 cursor-pointer transition-colors shadow-xs ${
+                      isUploadingAvatar ? "opacity-60 pointer-events-none" : ""
+                    }`}
+                  >
+                    {isUploadingAvatar ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin text-indigo-600" />
+                    ) : (
+                      <Upload className="h-3.5 w-3.5" />
+                    )}
+                    <span>{isUploadingAvatar ? "Uploading..." : "Upload Photo"}</span>
                     <input
                       type="file"
                       className="hidden"
                       accept="image/*"
                       onChange={handleAvatarFileChange}
+                      disabled={isUploadingAvatar}
                     />
                   </label>
                 </div>
               </div>
             </div>
 
-            {/* Name & Headline */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-              <Input
-                label="Full Name *"
-                value={onboardingData.fullName}
-                onChange={(e) => {
-                  updateOnboardingData({ fullName: e.target.value });
-                  if (profileErrors.fullName) setProfileErrors({ ...profileErrors, fullName: undefined });
-                }}
-                placeholder="e.g. Dharsit R"
-                error={profileErrors.fullName}
-                leftIcon={<User className="h-4 w-4" />}
-                required
-              />
-              <Input
-                label="Professional Headline *"
-                value={onboardingData.headline}
-                onChange={(e) => {
-                  updateOnboardingData({ headline: e.target.value });
-                  if (profileErrors.headline) setProfileErrors({ ...profileErrors, headline: undefined });
-                }}
-                placeholder="e.g. Full Stack Developer & UI Enthusiast"
-                error={profileErrors.headline}
-                leftIcon={<Briefcase className="h-4 w-4" />}
-                required
-              />
+            {/* Name & Headline with Suggestions */}
+            <div className="space-y-4 mb-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Input
+                  label="Full Name *"
+                  value={onboardingData.fullName}
+                  onChange={(e) => {
+                    updateOnboardingData({ fullName: e.target.value });
+                    if (profileErrors.fullName) setProfileErrors({ ...profileErrors, fullName: undefined });
+                  }}
+                  placeholder="e.g. Alex Chen"
+                  error={profileErrors.fullName}
+                  leftIcon={<User className="h-4 w-4" />}
+                  required
+                />
+                <Input
+                  label="Professional Headline *"
+                  value={onboardingData.headline}
+                  onChange={(e) => {
+                    updateOnboardingData({ headline: e.target.value });
+                    if (profileErrors.headline) setProfileErrors({ ...profileErrors, headline: undefined });
+                  }}
+                  placeholder="e.g. Full Stack Developer & UI Designer"
+                  error={profileErrors.headline}
+                  leftIcon={<Briefcase className="h-4 w-4" />}
+                  required
+                />
+              </div>
+
+              {/* Headline Suggestions Chips */}
+              <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200/80">
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 mb-2">
+                  <Sparkles className="h-3.5 w-3.5 text-indigo-600" />
+                  <span>Suggested Headlines (click to apply):</span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {HEADLINE_SUGGESTIONS.map((suggestion) => (
+                    <button
+                      key={suggestion}
+                      type="button"
+                      onClick={() => {
+                        updateOnboardingData({ headline: suggestion });
+                        if (profileErrors.headline) setProfileErrors({ ...profileErrors, headline: undefined });
+                      }}
+                      className={`text-xs px-2.5 py-1 rounded-full border transition-all cursor-pointer ${
+                        onboardingData.headline === suggestion
+                          ? "bg-indigo-600 text-white border-indigo-600 font-semibold shadow-xs"
+                          : "bg-white text-slate-700 border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/60 hover:text-indigo-700"
+                      }`}
+                    >
+                      + {suggestion}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
 
             {/* Bio */}
-            <div className="mb-4 space-y-1.5">
+            <div className="mb-6 space-y-1.5">
               <div className="flex items-center justify-between">
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
                   Short Bio (Min 10 characters) *
                 </label>
-                <span className="text-[11px] font-semibold text-slate-400">
-                  {onboardingData.bio.length} characters
+                <span
+                  className={`text-[11px] font-semibold ${
+                    onboardingData.bio.trim().length >= 10 ? "text-emerald-600 font-bold" : "text-slate-400"
+                  }`}
+                >
+                  {onboardingData.bio.trim().length}/10 min characters
                 </span>
               </div>
               <textarea
@@ -690,9 +916,16 @@ export function OnboardingView() {
                     ? "border-rose-300 focus:border-rose-500 focus:ring-rose-500/20"
                     : "border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:ring-indigo-500/20 shadow-xs"
                 }`}
-                placeholder="Share a short intro about what skills you enjoy sharing and what you're excited to learn..."
+                placeholder="Write your bio here: tell others about your background, what skills you love sharing, what you want to learn, and the kinds of peer exchanges you're looking for..."
               />
-              {profileErrors.bio && <p className="text-xs font-medium text-rose-600">{profileErrors.bio}</p>}
+              {profileErrors.bio ? (
+                <p className="text-xs font-medium text-rose-600">{profileErrors.bio}</p>
+              ) : (
+                <p className="text-[11px] text-slate-400">
+                  💡 Tip: Share what you&apos;re currently working on or your learning goals to connect with the best peer matches.
+                </p>
+
+              )}
             </div>
 
             {/* Location and Timezone */}
@@ -955,10 +1188,20 @@ export function OnboardingView() {
                 variant="primary"
                 size="lg"
                 onClick={handleFinishOnboarding}
+                disabled={isFinishing}
                 className="w-full sm:w-auto px-8 font-extrabold shadow-lg shadow-indigo-500/25 group"
               >
-                <span>Launch My Dashboard</span>
-                <ArrowRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
+                {isFinishing ? (
+                  <>
+                    <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                    <span>Launching Dashboard...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Launch My Dashboard</span>
+                    <ArrowRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
+                  </>
+                )}
               </Button>
             </div>
           </div>

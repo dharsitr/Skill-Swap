@@ -10,27 +10,43 @@
 !.yarn/releases
 !.yarn/versions
 
-# testing
+# testing & coverage
 /coverage
+/scratch
 
-# next.js
+# internal documentation & scratchpads
+/docs
+*.scratchpad.md
+
+# next.js build output
 /.next/
 /out/
 
 # production
 /build
 
-# misc
+# IDE & editors
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+*~
+
+# misc & OS
 .DS_Store
+Thumbs.db
 *.pem
 
-# debug
+# debug logs
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
+# environment files (prevent accidental secret leaks)
 .env*
 !.env.example
 

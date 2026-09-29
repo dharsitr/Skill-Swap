@@ -344,37 +344,137 @@ export function DashboardView() {
                   </button>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                  {POPULAR_SKILLS.slice(0, 4).map((skill) => (
-                    <Card
-                      key={skill.id}
-                      className="rounded-2xl border-slate-200/90 hover:border-indigo-400 hover:shadow-md hover:shadow-indigo-500/5 transition-all p-5 flex flex-col justify-between group cursor-pointer"
-                      onClick={() => {
-                        setSelectedPartner("Community Mentor");
-                        setSelectedTopic(skill.name);
-                        setActiveModal("requestSwap");
-                      }}
-                    >
-                      <div>
-                        <div className="h-10 w-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-sm mb-3 group-hover:scale-105 transition-transform">
-                          {skill.name.slice(0, 2).toUpperCase()}
-                        </div>
-                        <h5 className="text-sm font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">
-                          {skill.name}
-                        </h5>
-                        <p className="text-xs text-slate-400 mt-1">{skill.learners}</p>
-                      </div>
+                {(() => {
+                  const targetLearn = new Set<string>(
+                    (onboardingData.learningSkills || []).map((s: string) => s.toLowerCase().trim()).filter(Boolean)
+                  );
+                  const matchedMentors = MOCK_MENTORS.filter((m) =>
+                    m.teaches.some((ts: string) =>
+                      Array.from(targetLearn).some(
+                        (tl: string) =>
+                          tl === ts.toLowerCase().trim() ||
+                          ts.toLowerCase().trim().includes(tl) ||
+                          tl.includes(ts.toLowerCase().trim())
+                      )
+                    )
+                  );
 
-                      <div className="pt-4 mt-4 border-t border-slate-100 flex items-center justify-between text-xs">
-                        <span className="font-semibold text-slate-500">{skill.category}</span>
-                        <span className="font-bold text-indigo-600 group-hover:translate-x-0.5 transition-transform">
-                          Swap →
-                        </span>
-                      </div>
-                    </Card>
-                  ))}
-                </div>
+                  if (targetLearn.size === 0) {
+                    return (
+                      <Card className="rounded-2xl border-dashed border-slate-200 p-6 text-center bg-slate-50/50">
+                        <Sparkles className="h-8 w-8 text-indigo-500 mx-auto mb-2 opacity-80" />
+                        <h4 className="text-sm font-bold text-slate-800">Add skills you want to learn</h4>
+                        <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
+                          Tell us what skills you&apos;re looking to acquire, and we&apos;ll automatically recommend matching mentors who teach them.
+                        </p>
+                        <div className="mt-3">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setActiveTab("settings")}
+                            className="font-bold text-indigo-600 border-indigo-200 hover:bg-indigo-50 cursor-pointer"
+                          >
+                            <Plus className="h-3.5 w-3.5 mr-1" />
+                            Add Learn Skills in Settings
+                          </Button>
+                        </div>
+                      </Card>
+                    );
+                  }
+
+                  if (matchedMentors.length === 0) {
+                    return (
+                      <Card className="rounded-2xl border-slate-200 p-6 text-center bg-slate-50/50">
+                        <Search className="h-8 w-8 text-indigo-500 mx-auto mb-2 opacity-80" />
+                        <h4 className="text-sm font-bold text-slate-800">No mentors currently teaching your learning skills</h4>
+                        <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
+                          You&apos;re currently looking to learn:{" "}
+                          <span className="font-semibold text-slate-700">
+                            {(onboardingData.learningSkills || []).join(", ")}
+                          </span>
+                          . Browse the full directory to find available community peers.
+                        </p>
+                        <div className="mt-3">
+                          <Button
+                            size="sm"
+                            variant="primary"
+                            onClick={() => setActiveTab("discover")}
+                            className="font-bold cursor-pointer"
+                          >
+                            Explore All Community Mentors
+                          </Button>
+                        </div>
+                      </Card>
+                    );
+                  }
+
+                  return (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                      {matchedMentors.slice(0, 4).map((mentor) => {
+                        const matchedSkill = mentor.teaches.find((ts: string) =>
+                          Array.from(targetLearn).some(
+                            (tl: string) =>
+                              tl === ts.toLowerCase().trim() ||
+                              ts.toLowerCase().trim().includes(tl) ||
+                              tl.includes(ts.toLowerCase().trim())
+                          )
+                        ) || mentor.teaches[0];
+
+                        return (
+                          <Card
+                            key={mentor.id}
+                            className="rounded-2xl border-slate-200/90 hover:border-indigo-400 hover:shadow-md hover:shadow-indigo-500/5 transition-all p-5 flex flex-col justify-between group cursor-pointer bg-white"
+                            onClick={() => {
+                              setSelectedPartner(mentor.name);
+                              setSelectedTopic(matchedSkill);
+                              setActiveModal("requestSwap");
+                            }}
+                          >
+                            <div>
+                              <div className="flex items-center gap-3 mb-3">
+                                <Avatar
+                                  src={mentor.avatar}
+                                  alt={mentor.name}
+                                  size="md"
+                                  isOnline={true}
+                                />
+                                <div className="min-w-0 flex-1">
+                                  <h5 className="text-sm font-bold text-slate-900 group-hover:text-indigo-600 transition-colors truncate">
+                                    {mentor.name}
+                                  </h5>
+                                  <p className="text-xs text-slate-400 truncate">
+                                    {mentor.headline || "Peer Mentor"}
+                                  </p>
+                                </div>
+                              </div>
+
+                              <div className="mb-2">
+                                <span className="text-[11px] font-bold text-slate-500 block mb-1">
+                                  Teaches what you want to learn:
+                                </span>
+                                <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200 text-xs font-bold">
+                                  <Sparkles className="h-3 w-3 mr-1 text-indigo-600" />
+                                  {matchedSkill}
+                                </Badge>
+                              </div>
+                            </div>
+
+                            <div className="pt-3 mt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                              <span className="font-semibold text-slate-400">
+                                {mentor.location}
+                              </span>
+                              <span className="font-bold text-indigo-600 group-hover:translate-x-0.5 transition-transform flex items-center gap-1">
+                                Swap →
+                              </span>
+                            </div>
+                          </Card>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
               </section>
+
             </div>
           )}
 

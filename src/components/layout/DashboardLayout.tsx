@@ -1,15 +1,17 @@
 "use client";
 
-import React, { useState, ReactNode } from "react";
+import React, { useState, useEffect, ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useApp } from "@/context/AppContext";
+import { useAuth } from "@/context/AuthContext";
 import { Sidebar } from "./Sidebar";
 import { MobileNavigation } from "./MobileNavigation";
 import { Avatar } from "@/components/ui/avatar";
-import { Modal } from "@/components/ui/modal";
-import { Button } from "@/components/ui/button";
-import { Bell, ChevronDown, Menu, Sparkles, CheckCircle2 } from "lucide-react";
+import { CreditBalance } from "@/components/credits/CreditBalance";
+import { NotificationCenter } from "@/components/notifications/NotificationCenter";
+import { notificationService } from "@/lib/supabase/services/notificationService";
+import { Bell, ChevronDown, Menu } from "lucide-react";
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -17,9 +19,57 @@ interface DashboardLayoutProps {
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
   const pathname = usePathname();
-  const { onboardingData, userCredits } = useApp();
+  const { onboardingData } = useApp();
+  const { user, profile } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [notifModalOpen, setNotifModalOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState<number>(0);
+
+  const displayName = profile?.display_name || user?.user_metadata?.full_name || onboardingData.fullName || "Dharsit";
+  const avatarSrc = profile?.avatar_url || onboardingData.avatarUrl;
+
+  // Sync unread notification count & auto-check 24h reminders
+  useEffect(() => {
+    if (!user?.id) return;
+
+    let isMounted = true;
+
+    // Initial fetch of unread count
+    const fetchUnread = async () => {
+      try {
+        const res = await notificationService.getUnreadCount(user.id);
+        if (isMounted && typeof res.data === "number") setUnreadCount(res.data);
+      } catch {
+        // Handled gracefully
+      }
+    };
+
+    fetchUnread();
+
+    // Check for any upcoming session reminders (within 24h)
+    notificationService.checkSessionReminders(user.id).then(() => {
+      if (isMounted) fetchUnread();
+    });
+
+    // Real-time subscription to notifications
+    const unsubscribe = notificationService.subscribeToNotifications(user.id, {
+      onNewNotification: () => {
+        if (isMounted) {
+          setUnreadCount((prev) => prev + 1);
+        }
+      },
+      onNotificationUpdated: () => {
+        if (isMounted) {
+          fetchUnread();
+        }
+      },
+    });
+
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
+  }, [user?.id]);
 
   // Generate page title segment
   const segments = pathname.split("/").filter(Boolean);
@@ -61,15 +111,23 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           </div>
 
           {/* Right Header Navigation & Actions */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            {/* Live Credit Balance Link Chip */}
+            <CreditBalance asLink variant="chip" size="sm" />
+
             {/* Notification Bell */}
             <button
               onClick={() => setNotifModalOpen(true)}
               className="relative p-2 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors cursor-pointer"
               title="Notifications"
+              aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ""}`}
             >
               <Bell className="h-5 w-5" />
-              <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-indigo-600 ring-2 ring-white" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center ring-2 ring-white animate-in zoom-in-50 duration-200">
+                  {unreadCount > 99 ? "99+" : unreadCount}
+                </span>
+              )}
             </button>
 
             {/* User Profile Chip */}
@@ -78,16 +136,13 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
               className="flex items-center gap-2.5 pl-2 pr-3 py-1.5 rounded-full border border-slate-200 hover:border-slate-300 hover:bg-slate-50 transition-all select-none"
             >
               <Avatar
-                src={onboardingData.avatarUrl}
-                alt={onboardingData.fullName}
+                src={avatarSrc}
+                alt={displayName}
                 size="sm"
                 isOnline={true}
               />
               <span className="text-xs font-bold text-slate-900 hidden sm:inline-block">
-                {onboardingData.fullName || "Dharsit"}
-              </span>
-              <span className="text-xs font-semibold text-indigo-600 hidden md:inline-block">
-                🪙 {userCredits}
+                {displayName}
               </span>
               <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
             </Link>
@@ -98,33 +153,15 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         <main className="p-4 sm:p-8 max-w-6xl w-full mx-auto flex-1">{children}</main>
       </div>
 
-      {/* Notifications Modal */}
-      <Modal
-        isOpen={notifModalOpen}
-        onClose={() => setNotifModalOpen(false)}
-        title="Notifications"
-        description="Stay updated with incoming swap requests and peer session reminders."
-      >
-        <div className="space-y-3 pt-1">
-          <div className="p-3.5 rounded-2xl bg-indigo-50/60 border border-indigo-100 flex items-start gap-3 text-xs">
-            <Sparkles className="h-4 w-4 text-indigo-600 flex-shrink-0 mt-0.5" />
-            <div>
-              <div className="font-bold text-slate-900">Priya Sharma accepted your UI/UX swap request</div>
-              <div className="text-slate-500 mt-0.5">Session scheduled for tomorrow at 4:00 PM.</div>
-            </div>
-          </div>
-          <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-100 flex items-start gap-3 text-xs">
-            <CheckCircle2 className="h-4 w-4 text-emerald-600 flex-shrink-0 mt-0.5" />
-            <div>
-              <div className="font-bold text-slate-900">Welcome bonus credited</div>
-              <div className="text-slate-500 mt-0.5">50 credits have been deposited to your account.</div>
-            </div>
-          </div>
-          <Button variant="outline" className="w-full" onClick={() => setNotifModalOpen(false)}>
-            Mark all as read
-          </Button>
-        </div>
-      </Modal>
+      {/* Notifications Drawer / Modal */}
+      {user && (
+        <NotificationCenter
+          isOpen={notifModalOpen}
+          onClose={() => setNotifModalOpen(false)}
+          currentUserId={user.id}
+          onUnreadCountChange={setUnreadCount}
+        />
+      )}
     </div>
   );
 }

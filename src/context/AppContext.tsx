@@ -60,9 +60,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [activeScreen, setActiveScreen] = useState<ActiveScreen>(() => getStoredValue("activeScreen", "landing"));
   const [activeTab, setActiveTab] = useState<string>(() => getStoredValue("activeTab", "dashboard"));
   const [authMode, setAuthMode] = useState<"login" | "signup">("login");
-  const [onboardingData, setOnboardingData] = useState<OnboardingState>(() =>
-    getStoredValue("onboardingData", INITIAL_ONBOARDING_STATE)
-  );
+  const [onboardingData, setOnboardingData] = useState<OnboardingState>(() => {
+    const stored = getStoredValue<OnboardingState>("onboardingData", INITIAL_ONBOARDING_STATE);
+    const legacyTzMatch =
+      stored.timezone === "Asia/Kolkata (IST, GMT+5:30)"
+        ? INITIAL_ONBOARDING_STATE.timezone
+        : stored.timezone;
+    return {
+      ...stored,
+      headline:
+        stored.headline === "Full Stack Learner & Designer" || !stored.headline ? "" : stored.headline,
+      bio:
+        stored.bio?.startsWith("Curious builder passionate") || !stored.bio ? "" : stored.bio,
+      avatarUrl:
+        !stored.avatarUrl || stored.avatarUrl.includes("images.unsplash.com")
+          ? INITIAL_ONBOARDING_STATE.avatarUrl
+          : stored.avatarUrl,
+      timezone: legacyTzMatch || INITIAL_ONBOARDING_STATE.timezone,
+    };
+  });
   const [onboardingStep, setOnboardingStep] = useState<number>(() => getStoredValue("onboardingStep", 1));
   const [userCredits, setUserCredits] = useState<number>(() => getStoredValue("userCredits", 42));
   const [welcomeCreditsAwarded, setWelcomeCreditsAwarded] = useState<boolean>(() =>

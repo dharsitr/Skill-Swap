@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" fill="none">
+  <defs>
+    <linearGradient id="bg6" x1="0" y1="0" x2="120" y2="120" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0284C7"/>
+      <stop offset="1" stop-color="#06B6D4"/>
+    </linearGradient>
+    <linearGradient id="skin6" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#FCD34D"/>
+      <stop offset="1" stop-color="#F59E0B"/>
+    </linearGradient>
+  </defs>
+  <rect width="120" height="120" rx="60" fill="url(#bg6)"/>
+  <!-- Body/Denim Jacket -->
+  <path d="M22 116C22 93 38 78 60 78C82 78 98 93 98 116V120H22V116Z" fill="#1E3A8A"/>
+  <path d="M48 85H72V120H48V85Z" fill="#DBEAFE"/>
+  <!-- Neck -->
+  <rect x="52" y="62" width="16" height="18" rx="8" fill="#F59E0B"/>
+  <!-- Head -->
+  <circle cx="60" cy="50" r="21" fill="url(#skin6)"/>
+  <!-- Spiky/Short Hair -->
+  <path d="M38 46C37 36 44 26 53 24C58 26 62 23 68 25C74 27 82 34 82 46C78 40 73 35 60 35C47 35 42 40 38 46Z" fill="#0F172A"/>
+  <!-- Modern Round Glasses -->
+  <circle cx="51" cy="51" r="7" stroke="#0F172A" stroke-width="2.2" fill="rgba(255,255,255,0.3)"/>
+  <circle cx="69" cy="51" r="7" stroke="#0F172A" stroke-width="2.2" fill="rgba(255,255,255,0.3)"/>
+  <path d="M58 51H62" stroke="#0F172A" stroke-width="2.2"/>
+  <!-- Eyes -->
+  <circle cx="51" cy="51" r="1.5" fill="#0F172A"/>
+  <circle cx="69" cy="51" r="1.5" fill="#0F172A"/>
+  <!-- Smile -->
+  <path d="M54 62C56.5 64.5 63.5 64.5 66 62" stroke="#92400E" stroke-width="2" stroke-linecap="round"/>
+</svg>

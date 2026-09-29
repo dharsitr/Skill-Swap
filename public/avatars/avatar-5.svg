@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" fill="none">
+  <defs>
+    <linearGradient id="bg5" x1="0" y1="0" x2="120" y2="120" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F59E0B"/>
+      <stop offset="1" stop-color="#D97706"/>
+    </linearGradient>
+    <linearGradient id="skin5" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#FEF08A"/>
+      <stop offset="1" stop-color="#FDE047"/>
+    </linearGradient>
+  </defs>
+  <rect width="120" height="120" rx="60" fill="url(#bg5)"/>
+  <!-- Body/Suit -->
+  <path d="M22 116C22 93 38 78 60 78C82 78 98 93 98 116V120H22V116Z" fill="#1E293B"/>
+  <!-- Shirt collar -->
+  <path d="M50 78L60 90L70 78" fill="#F8FAFC"/>
+  <!-- Tie -->
+  <path d="M58 87L62 87L63 105L60 110L57 105Z" fill="#E11D48"/>
+  <!-- Neck -->
+  <rect x="52" y="62" width="16" height="18" rx="8" fill="#FACC15"/>
+  <!-- Head -->
+  <circle cx="60" cy="50" r="21" fill="url(#skin5)"/>
+  <!-- Hair: sleek side comb -->
+  <path d="M38 46C38 31 46 25 60 25C74 25 82 32 82 46C76 36 68 33 55 35C45 37 41 42 38 46Z" fill="#422006"/>
+  <!-- Eyes -->
+  <circle cx="52" cy="51" r="2" fill="#1C1917"/>
+  <circle cx="68" cy="51" r="2" fill="#1C1917"/>
+  <!-- Eyebrows -->
+  <path d="M49 46C51 45 55 46 55 46" stroke="#422006" stroke-width="1.8" stroke-linecap="round"/>
+  <path d="M65 46C65 46 69 45 71 46" stroke="#422006" stroke-width="1.8" stroke-linecap="round"/>
+  <!-- Smile -->
+  <path d="M54 61C56.5 63.5 63.5 63.5 66 61" stroke="#A16207" stroke-width="2" stroke-linecap="round"/>
+</svg>

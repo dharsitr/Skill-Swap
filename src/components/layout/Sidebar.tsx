@@ -2,8 +2,9 @@
 
 import React from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useApp } from "@/context/AppContext";
+import { useAuth } from "@/context/AuthContext";
 import { Avatar } from "@/components/ui/avatar";
 import { DASHBOARD_NAV_ITEMS } from "@/constants/config";
 import {
@@ -14,10 +15,13 @@ import {
   MessageSquare,
   User,
   Settings,
+  Coins,
   Sparkles,
   LogOut,
   LucideIcon,
 } from "lucide-react";
+import { CreditBalance } from "@/components/credits/CreditBalance";
+import { sessionService, chatService } from "@/lib/supabase/services";
 import { cn } from "@/lib/utils";
 
 interface SidebarProps {
@@ -29,6 +33,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
   LayoutDashboard,
   Compass,
   GraduationCap,
+  Coins,
   Calendar,
   MessageSquare,
   User,
@@ -37,7 +42,61 @@ const ICON_MAP: Record<string, LucideIcon> = {
 
 export function Sidebar({ className, onNavigate }: SidebarProps) {
   const pathname = usePathname();
-  const { onboardingData, userCredits } = useApp();
+  const router = useRouter();
+  const { onboardingData, showToast } = useApp();
+  const { user, profile, signOut } = useAuth();
+
+  const [sessionCount, setSessionCount] = React.useState<number>(0);
+  const [unreadMessageCount, setUnreadMessageCount] = React.useState<number>(0);
+
+  React.useEffect(() => {
+    if (!user?.id) {
+      setSessionCount(0);
+      setUnreadMessageCount(0);
+      return;
+    }
+
+    let isMounted = true;
+    Promise.all([
+      sessionService.getUserSessions(user.id),
+      chatService.getUserConversations(user.id),
+    ])
+      .then(([sessRes, convRes]) => {
+        if (!isMounted) return;
+        if (sessRes.data) {
+          const activeSessions = sessRes.data.filter(
+            (s) => s.status === "confirmed" || s.status === "pending"
+          ).length;
+          setSessionCount(activeSessions);
+        }
+        if (convRes.data) {
+          const totalUnread = convRes.data.reduce(
+            (sum, conv) => sum + (conv.unreadCount || 0),
+            0
+          );
+          setUnreadMessageCount(totalUnread);
+        }
+      })
+      .catch(() => {
+        // Fallback to 0
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [user?.id]);
+
+  const displayName = profile?.display_name || user?.user_metadata?.full_name || onboardingData.fullName || "Dharsit R";
+  const avatarSrc = profile?.avatar_url || onboardingData.avatarUrl;
+
+  const handleLogout = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    await signOut();
+    showToast("You have been signed out successfully.", "info");
+    onNavigate?.();
+    router.push("/login");
+  };
 
   return (
     <aside
@@ -91,16 +150,27 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
                   <span>{item.label}</span>
                 </div>
 
-                {"badge" in item && item.badge && (
-                  <span
-                    className={cn(
-                      "text-[11px] px-1.5 py-0.5 rounded-full font-bold",
-                      isActive ? "bg-indigo-200 text-indigo-800" : "bg-slate-100 text-slate-500"
-                    )}
-                  >
-                    {item.badge}
-                  </span>
-                )}
+                {(() => {
+                  const badge =
+                    item.id === "sessions" && sessionCount > 0
+                      ? sessionCount
+                      : item.id === "messages" && unreadMessageCount > 0
+                      ? unreadMessageCount
+                      : undefined;
+
+                  if (!badge) return null;
+
+                  return (
+                    <span
+                      className={cn(
+                        "text-[11px] px-1.5 py-0.5 rounded-full font-bold",
+                        isActive ? "bg-indigo-200 text-indigo-800" : "bg-slate-100 text-slate-500"
+                      )}
+                    >
+                      {badge}
+                    </span>
+                  );
+                })()}
               </Link>
             );
           })}
@@ -109,35 +179,33 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
 
       {/* Footer User Mini-Card */}
       <div className="p-4 border-t border-slate-100 space-y-3">
-        <Link
-          href="/dashboard/profile"
-          onClick={onNavigate}
-          className="flex items-center justify-between p-2 rounded-xl hover:bg-slate-50 transition-colors"
-        >
-          <div className="flex items-center gap-2.5 min-w-0">
-            <Avatar src={onboardingData.avatarUrl} alt={onboardingData.fullName} size="sm" isOnline={true} />
+        <div className="flex items-center justify-between p-2 rounded-xl hover:bg-slate-50 transition-colors">
+          <Link
+            href="/dashboard/profile"
+            onClick={onNavigate}
+            className="flex items-center gap-2.5 min-w-0 flex-1"
+          >
+            <Avatar src={avatarSrc} alt={displayName} size="sm" isOnline={true} />
             <div className="flex flex-col min-w-0">
               <span className="text-xs font-bold text-slate-900 truncate">
-                {onboardingData.fullName || "Dharsit R"}
+                {displayName}
               </span>
-              <span className="text-[11px] font-semibold text-indigo-600 flex items-center gap-1">
-                <span>🪙</span> {userCredits} Credits
-              </span>
+              <div className="mt-0.5">
+                <CreditBalance size="sm" variant="plain" />
+              </div>
             </div>
-          </div>
+          </Link>
 
-          <Link
-            href="/login"
-            onClick={(e) => {
-              e.stopPropagation();
-              onNavigate?.();
-            }}
-            className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
             title="Log out"
+            aria-label="Log out"
           >
             <LogOut className="h-4 w-4" />
-          </Link>
-        </Link>
+          </button>
+        </div>
       </div>
     </aside>
   );

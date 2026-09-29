@@ -29,8 +29,8 @@ export function Sidebar({ activeTab = "dashboard", onSelectTab, className }: Sid
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
     { id: "discover", label: "Discover", icon: Compass },
     { id: "my-skills", label: "My Skills", icon: GraduationCap },
-    { id: "sessions", label: "Sessions", icon: Calendar, badge: "2" },
-    { id: "messages", label: "Messages", icon: MessageSquare, badge: "3" },
+    { id: "sessions", label: "Sessions", icon: Calendar },
+    { id: "messages", label: "Messages", icon: MessageSquare },
     { id: "wallet", label: "Wallet", icon: Wallet },
     { id: "settings", label: "Settings", icon: Settings },
   ];
@@ -86,17 +86,6 @@ export function Sidebar({ activeTab = "dashboard", onSelectTab, className }: Sid
                   />
                   <span>{item.label}</span>
                 </div>
-
-                {item.badge && (
-                  <span
-                    className={cn(
-                      "text-[11px] px-1.5 py-0.5 rounded-full font-bold",
-                      isActive ? "bg-indigo-200 text-indigo-800" : "bg-slate-100 text-slate-500"
-                    )}
-                  >
-                    {item.badge}
-                  </span>
-                )}
               </button>
             );
           })}

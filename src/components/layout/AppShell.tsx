@@ -2,6 +2,7 @@
 
 import React, { ReactNode } from "react";
 import { AppProvider, useApp } from "@/context/AppContext";
+import { AuthProvider } from "@/context/AuthContext";
 import { Toast } from "@/components/ui/toast";
 
 function ShellInner({ children }: { children: ReactNode }) {
@@ -25,7 +26,9 @@ function ShellInner({ children }: { children: ReactNode }) {
 export function AppShell({ children }: { children: ReactNode }) {
   return (
     <AppProvider>
-      <ShellInner>{children}</ShellInner>
+      <AuthProvider>
+        <ShellInner>{children}</ShellInner>
+      </AuthProvider>
     </AppProvider>
   );
 }

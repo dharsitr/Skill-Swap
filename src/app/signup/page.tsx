@@ -1,10 +1,10 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, Suspense } from "react";
 import { useApp } from "@/context/AppContext";
 import { AuthView } from "@/components/views/AuthView";
 
-export default function SignupPage() {
+function SignupContent() {
   const { setAuthMode } = useApp();
 
   useEffect(() => {
@@ -12,4 +12,12 @@ export default function SignupPage() {
   }, [setAuthMode]);
 
   return <AuthView />;
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-slate-50" />}>
+      <SignupContent />
+    </Suspense>
+  );
 }

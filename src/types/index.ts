@@ -114,3 +114,56 @@ export interface WalletTransaction {
   type: "earned" | "spent" | "bonus";
   status: "Completed" | "Pending";
 }
+
+export interface Review {
+  id: string;
+  sessionId: string;
+  reviewerId: string;
+  revieweeId: string;
+  rating: number; // 1-5 integer
+  comment?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ReviewWithProfiles extends Review {
+  reviewer?: {
+    id: string;
+    displayName: string | null;
+    avatarUrl: string | null;
+    headline: string | null;
+  };
+  reviewee?: {
+    id: string;
+    displayName: string | null;
+    avatarUrl: string | null;
+    headline: string | null;
+  };
+}
+
+export interface RatingSummary {
+  averageRating: number;
+  totalReviews: number;
+  distribution: {
+    1: number;
+    2: number;
+    3: number;
+    4: number;
+    5: number;
+  };
+}
+
+export interface CreateReviewInput {
+  sessionId: string;
+  reviewerId: string;
+  revieweeId: string;
+  rating: number;
+  comment?: string;
+}
+
+export interface UpdateReviewInput {
+  reviewId: string;
+  rating: number;
+  comment?: string;
+}
+

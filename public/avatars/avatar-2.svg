@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" fill="none">
+  <defs>
+    <linearGradient id="bg2" x1="0" y1="0" x2="120" y2="120" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#059669"/>
+      <stop offset="1" stop-color="#0D9488"/>
+    </linearGradient>
+    <linearGradient id="skin2" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#FED7AA"/>
+      <stop offset="1" stop-color="#FDBA74"/>
+    </linearGradient>
+  </defs>
+  <rect width="120" height="120" rx="60" fill="url(#bg2)"/>
+  <!-- Hair back -->
+  <circle cx="60" cy="54" r="28" fill="#451A03"/>
+  <rect x="32" y="50" width="56" height="35" rx="14" fill="#451A03"/>
+  <!-- Body/Shoulders -->
+  <path d="M22 116C22 94 38 78 60 78C82 78 98 94 98 116V120H22V116Z" fill="#CCFBF1"/>
+  <!-- Neck -->
+  <rect x="52" y="62" width="16" height="18" rx="8" fill="#FDBA74"/>
+  <!-- Head -->
+  <circle cx="60" cy="49" r="21" fill="url(#skin2)"/>
+  <!-- Hair bangs -->
+  <path d="M39 44C41 33 49 26 60 26C71 26 79 33 81 44C73 38 65 37 60 41C55 37 47 38 39 44Z" fill="#451A03"/>
+  <!-- Eyes -->
+  <circle cx="51" cy="49" r="2" fill="#1C1917"/>
+  <circle cx="69" cy="49" r="2" fill="#1C1917"/>
+  <!-- Eyelashes/Brows -->
+  <path d="M48 44C50 43 54 44 54 44" stroke="#451A03" stroke-width="1.8" stroke-linecap="round"/>
+  <path d="M66 44C66 44 70 43 72 44" stroke="#451A03" stroke-width="1.8" stroke-linecap="round"/>
+  <!-- Smile -->
+  <path d="M53 58C56 61 64 61 67 58" stroke="#C2410C" stroke-width="2" stroke-linecap="round"/>
+  <!-- Earrings -->
+  <circle cx="38" cy="53" r="3" fill="#FEF08A"/>
+  <circle cx="82" cy="53" r="3" fill="#FEF08A"/>
+</svg>

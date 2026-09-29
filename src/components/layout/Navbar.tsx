@@ -1,12 +1,27 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { Sparkles, Menu, X, ArrowRight } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
+import { useApp } from "@/context/AppContext";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Sparkles, Menu, X, ArrowRight, LogOut } from "lucide-react";
 
 export function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const { user, signOut } = useAuth();
+  const { showToast } = useApp();
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const handleSignOut = async () => {
+    await signOut();
+    showToast("Signed out successfully.", "info");
+    setMobileMenuOpen(false);
+  };
 
   return (
     <header className="sticky top-0 z-40 w-full bg-white/90 backdrop-blur-md border-b border-slate-200/80">
@@ -31,7 +46,10 @@ export function Navbar() {
           <Link href="/#how-it-works" className="hover:text-indigo-600 transition-colors">
             How It Works
           </Link>
-          <Link href="/onboarding" className="hover:text-indigo-600 transition-colors">
+          <Link
+            href="/dashboard/discover"
+            className="hover:text-indigo-600 transition-colors"
+          >
             Explore Skills
           </Link>
           <Link href="/dashboard" className="hover:text-indigo-600 transition-colors">
@@ -41,17 +59,47 @@ export function Navbar() {
 
         {/* Actions */}
         <div className="hidden md:flex items-center gap-3">
-          <Link href="/login">
-            <Button variant="ghost" size="sm">
-              Log in
-            </Button>
-          </Link>
-          <Link href="/onboarding">
-            <Button variant="primary" size="sm" className="group">
-              Get Started Free
-              <ArrowRight className="h-4 w-4 group-hover:translate-x-0.5 transition-transform" />
-            </Button>
-          </Link>
+          {!mounted ? (
+            <div className="h-8 w-28 bg-slate-100 animate-pulse rounded-xl" />
+          ) : user ? (
+            <>
+              <Link
+                href="/dashboard"
+                className={buttonVariants({ variant: "primary", size: "sm" })}
+              >
+                Go to Dashboard
+              </Link>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleSignOut}
+                className="text-slate-500 hover:text-slate-800"
+              >
+                <LogOut className="h-4 w-4 mr-1.5" />
+                Sign out
+              </Button>
+            </>
+          ) : (
+            <>
+              <Link
+                href="/login"
+                className={buttonVariants({ variant: "ghost", size: "sm" })}
+              >
+                Log in
+              </Link>
+              <Link
+                href="/signup"
+                className={buttonVariants({
+                  variant: "primary",
+                  size: "sm",
+                  className: "group flex items-center gap-1.5",
+                })}
+              >
+                Get Started Free
+                <ArrowRight className="h-4 w-4 group-hover:translate-x-0.5 transition-transform" />
+              </Link>
+            </>
+          )}
         </div>
 
         {/* Mobile Menu Trigger */}
@@ -79,11 +127,11 @@ export function Navbar() {
               How It Works
             </Link>
             <Link
-              href="/onboarding"
+              href="/dashboard/discover"
               onClick={() => setMobileMenuOpen(false)}
               className="px-3 py-2 rounded-lg hover:bg-slate-100"
             >
-              Start Onboarding (5 Steps)
+              Explore Skills
             </Link>
             <Link
               href="/dashboard"
@@ -94,16 +142,44 @@ export function Navbar() {
             </Link>
           </div>
           <div className="pt-2 border-t border-slate-100 flex flex-col gap-2">
-            <Link href="/login" onClick={() => setMobileMenuOpen(false)}>
-              <Button variant="outline" className="w-full justify-center">
-                Log in
-              </Button>
-            </Link>
-            <Link href="/onboarding" onClick={() => setMobileMenuOpen(false)}>
-              <Button variant="primary" className="w-full justify-center">
-                Get Started Free
-              </Button>
-            </Link>
+            {!mounted ? (
+              <div className="h-10 w-full bg-slate-100 animate-pulse rounded-xl" />
+            ) : user ? (
+              <>
+                <Link
+                  href="/dashboard"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={buttonVariants({ variant: "primary", className: "w-full justify-center" })}
+                >
+                  Go to Dashboard
+                </Link>
+                <Button
+                  variant="outline"
+                  onClick={handleSignOut}
+                  className="w-full justify-center"
+                >
+                  <LogOut className="h-4 w-4 mr-1.5" />
+                  Sign out
+                </Button>
+              </>
+            ) : (
+              <>
+                <Link
+                  href="/login"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={buttonVariants({ variant: "outline", className: "w-full justify-center" })}
+                >
+                  Log in
+                </Link>
+                <Link
+                  href="/signup"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={buttonVariants({ variant: "primary", className: "w-full justify-center" })}
+                >
+                  Get Started Free
+                </Link>
+              </>
+            )}
           </div>
         </div>
       )}

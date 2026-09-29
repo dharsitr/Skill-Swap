@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" fill="none">
+  <defs>
+    <linearGradient id="bg4" x1="0" y1="0" x2="120" y2="120" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F43F5E"/>
+      <stop offset="1" stop-color="#FB7185"/>
+    </linearGradient>
+    <linearGradient id="skin4" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#FDBA74"/>
+      <stop offset="1" stop-color="#FB923C"/>
+    </linearGradient>
+  </defs>
+  <rect width="120" height="120" rx="60" fill="url(#bg4)"/>
+  <!-- Curly Hair Afro/Bob -->
+  <circle cx="60" cy="46" r="30" fill="#292524"/>
+  <circle cx="36" cy="42" r="14" fill="#292524"/>
+  <circle cx="84" cy="42" r="14" fill="#292524"/>
+  <circle cx="36" cy="56" r="12" fill="#292524"/>
+  <circle cx="84" cy="56" r="12" fill="#292524"/>
+  <!-- Body/Shoulders -->
+  <path d="M22 116C22 93 38 78 60 78C82 78 98 93 98 116V120H22V116Z" fill="#FFF1F2"/>
+  <!-- Neck -->
+  <rect x="52" y="62" width="16" height="18" rx="8" fill="#FB923C"/>
+  <!-- Head -->
+  <circle cx="60" cy="51" r="20" fill="url(#skin4)"/>
+  <!-- Eyes -->
+  <circle cx="52" cy="51" r="2" fill="#1C1917"/>
+  <circle cx="68" cy="51" r="2" fill="#1C1917"/>
+  <!-- Smile -->
+  <path d="M53 60C56 63.5 64 63.5 67 60" stroke="#9A3412" stroke-width="2.2" stroke-linecap="round"/>
+  <!-- Hoop Earrings -->
+  <circle cx="39" cy="55" r="4" stroke="#FDE047" stroke-width="2" fill="none"/>
+  <circle cx="81" cy="55" r="4" stroke="#FDE047" stroke-width="2" fill="none"/>
+</svg>

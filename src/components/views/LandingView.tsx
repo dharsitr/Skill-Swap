@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useApp } from "@/context/AppContext";
+import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -22,6 +23,7 @@ import {
 export function LandingView() {
   const router = useRouter();
   const { setActiveScreen, setAuthMode, onboardingData, updateOnboardingData, showToast } = useApp();
+  const { user } = useAuth();
   const [selectedCategory, setSelectedCategory] = useState<string>("All");
   const [searchQuery, setSearchQuery] = useState<string>("");
 
@@ -81,8 +83,13 @@ export function LandingView() {
                     }
                     showToast(`Searching peers for "${searchQuery.trim()}"...`);
                   }
-                  setActiveScreen("onboarding");
-                  router.push("/onboarding");
+                  if (user) {
+                    router.push("/dashboard/discover");
+                  } else {
+                    setAuthMode("signup");
+                    setActiveScreen("auth");
+                    router.push("/signup");
+                  }
                 }}
                 className="rounded-xl flex-shrink-0"
               >
@@ -97,25 +104,34 @@ export function LandingView() {
               variant="primary"
               size="lg"
               onClick={() => {
-                setActiveScreen("onboarding");
-                router.push("/onboarding");
+                if (user) {
+                  router.push("/dashboard");
+                } else {
+                  setAuthMode("signup");
+                  setActiveScreen("auth");
+                  router.push("/signup");
+                }
               }}
-              className="w-full sm:w-auto shadow-md shadow-indigo-500/25 group text-base"
+              className="w-full sm:w-auto shadow-md shadow-indigo-500/25 group text-base font-bold"
             >
-              Start 5-Step Onboarding
+              Get Started Free
               <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
             </Button>
             <Button
               variant="outline"
               size="lg"
               onClick={() => {
-                setAuthMode("login");
-                setActiveScreen("auth");
-                router.push("/login");
+                if (user) {
+                  router.push("/");
+                } else {
+                  setAuthMode("login");
+                  setActiveScreen("auth");
+                  router.push("/login");
+                }
               }}
-              className="w-full sm:w-auto text-base"
+              className="w-full sm:w-auto text-base font-semibold"
             >
-              Log into Existing Account
+              Sign In
             </Button>
           </div>
 
@@ -290,10 +306,18 @@ export function LandingView() {
             <Button
               variant="primary"
               size="lg"
-              onClick={() => setActiveScreen("onboarding")}
+              onClick={() => {
+                if (user) {
+                  router.push("/dashboard");
+                } else {
+                  setAuthMode("signup");
+                  setActiveScreen("auth");
+                  router.push("/signup");
+                }
+              }}
               className="bg-white text-indigo-950 hover:bg-indigo-50 font-bold flex-shrink-0"
             >
-              Get Started Now →
+              Get Started Free →
             </Button>
           </div>
         </div>

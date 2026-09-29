@@ -1,35 +1,92 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useApp } from "@/context/AppContext";
+import { useAuth } from "@/context/AuthContext";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Sparkles, Mail, Lock, User, Eye, EyeOff, ArrowRight } from "lucide-react";
+import {
+  Sparkles,
+  Mail,
+  Lock,
+  User,
+  Eye,
+  EyeOff,
+  ArrowRight,
+  AlertCircle,
+  Loader2,
+} from "lucide-react";
 
 export function AuthView() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectTarget = searchParams.get("redirect") || "/";
+
   const { authMode, setAuthMode, setActiveScreen, showToast, updateOnboardingData } = useApp();
+  const { user, isLoading: authLoading, signIn, signUp } = useAuth();
+
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Redirect authenticated users away from login/signup
+  useEffect(() => {
+    if (!authLoading && user) {
+      router.replace(redirectTarget);
+    }
+  }, [user, authLoading, router, redirectTarget]);
+
+  const handleModeChange = (mode: "login" | "signup") => {
+    setAuthMode(mode);
+    setError(null);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
+
     if (authMode === "signup") {
-      if (fullName) {
-        updateOnboardingData({ fullName });
+      if (!fullName.trim()) {
+        setError("Please enter your full name.");
+        return;
       }
+      if (password.length < 6) {
+        setError("Password must be at least 6 characters long.");
+        return;
+      }
+
+      setIsSubmitting(true);
+      const res = await signUp(email, password, fullName);
+      setIsSubmitting(false);
+
+      if (!res.success) {
+        setError(res.error || "Failed to create account. Please try again.");
+        return;
+      }
+
+      updateOnboardingData({ fullName: fullName.trim() });
       showToast("Account created successfully! Welcome to SkillSwap 🎉");
       setActiveScreen("onboarding");
       router.push("/onboarding");
     } else {
-      showToast("Welcome back, Dharsit! Logged in successfully ✨");
-      setActiveScreen("dashboard");
-      router.push("/dashboard");
+      setIsSubmitting(true);
+      const res = await signIn(email, password);
+      setIsSubmitting(false);
+
+      if (!res.success) {
+        setError(res.error || "Failed to sign in. Please check your credentials.");
+        return;
+      }
+
+      showToast("Welcome back! Logged in successfully ✨");
+      setActiveScreen("landing");
+      router.push(redirectTarget);
     }
   };
 
@@ -61,7 +118,7 @@ export function AuthView() {
           <div className="flex p-1 bg-slate-100 rounded-xl mb-6 border border-slate-200/60">
             <button
               type="button"
-              onClick={() => setAuthMode("login")}
+              onClick={() => handleModeChange("login")}
               className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
                 authMode === "login"
                   ? "bg-white text-slate-900 shadow-xs"
@@ -72,7 +129,7 @@ export function AuthView() {
             </button>
             <button
               type="button"
-              onClick={() => setAuthMode("signup")}
+              onClick={() => handleModeChange("signup")}
               className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
                 authMode === "signup"
                   ? "bg-white text-slate-900 shadow-xs"
@@ -95,15 +152,38 @@ export function AuthView() {
           </CardHeader>
 
           <CardContent className="p-0">
+            {/* Inline Error Alert */}
+            {error && (
+              <div className="mb-4 p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-start gap-2.5 animate-in fade-in duration-200">
+                <AlertCircle className="h-4 w-4 text-rose-500 shrink-0 mt-0.5" />
+                <div className="flex-1 font-medium leading-relaxed">
+                  <p>{error}</p>
+                  {error.includes("already exists") && (
+                    <button
+                      type="button"
+                      onClick={() => handleModeChange("login")}
+                      className="mt-1.5 text-xs font-bold text-indigo-700 underline hover:text-indigo-900 block cursor-pointer"
+                    >
+                      Already have an account? Click here to Sign In →
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
             <form onSubmit={handleSubmit} className="space-y-4">
               {authMode === "signup" && (
                 <Input
                   label="Full Name"
                   placeholder="e.g. Dharsit R"
                   value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
+                  onChange={(e) => {
+                    setFullName(e.target.value);
+                    if (error) setError(null);
+                  }}
                   leftIcon={<User className="h-4 w-4" />}
                   required
+                  disabled={isSubmitting}
                 />
               )}
 
@@ -112,9 +192,13 @@ export function AuthView() {
                 type="email"
                 placeholder="name@example.com"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  if (error) setError(null);
+                }}
                 leftIcon={<Mail className="h-4 w-4" />}
                 required
+                disabled={isSubmitting}
               />
 
               <Input
@@ -122,7 +206,10 @@ export function AuthView() {
                 type={showPassword ? "text" : "password"}
                 placeholder="••••••••"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  if (error) setError(null);
+                }}
                 leftIcon={<Lock className="h-4 w-4" />}
                 rightIcon={
                   <button
@@ -134,23 +221,40 @@ export function AuthView() {
                   </button>
                 }
                 required
+                disabled={isSubmitting}
               />
 
               {authMode === "login" && (
                 <div className="flex items-center justify-between text-xs pt-1">
                   <label className="flex items-center gap-2 text-slate-600 cursor-pointer font-medium">
-                    <input type="checkbox" className="rounded text-indigo-600 focus:ring-indigo-500" />
+                    <input
+                      type="checkbox"
+                      className="rounded text-indigo-600 focus:ring-indigo-500"
+                    />
                     Remember me
                   </label>
-                  <a href="#" className="font-semibold text-indigo-600 hover:text-indigo-700">
-                    Forgot password?
-                  </a>
+                  <span className="text-slate-400">Secure session</span>
                 </div>
               )}
 
-              <Button type="submit" variant="primary" size="lg" className="w-full mt-2 font-bold group">
-                <span>{authMode === "login" ? "Sign In" : "Get Started (Free)"}</span>
-                <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
+              <Button
+                type="submit"
+                variant="primary"
+                size="lg"
+                className="w-full mt-2 font-bold group"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    <span>{authMode === "login" ? "Signing In..." : "Creating Account..."}</span>
+                  </>
+                ) : (
+                  <>
+                    <span>{authMode === "login" ? "Sign In" : "Get Started (Free)"}</span>
+                    <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
+                  </>
+                )}
               </Button>
             </form>
 
@@ -164,16 +268,17 @@ export function AuthView() {
               </span>
             </div>
 
-            {/* Social Mock Buttons */}
+            {/* Social Buttons */}
             <div className="grid grid-cols-2 gap-3">
               <Button
                 variant="outline"
                 size="md"
+                type="button"
                 onClick={() => {
-                  showToast("Google OAuth simulated");
-                  setActiveScreen("onboarding");
+                  showToast("OAuth login will be available in a future release.", "info");
                 }}
                 className="w-full text-xs font-semibold"
+                disabled={isSubmitting}
               >
                 <svg className="h-4 w-4 mr-1.5" viewBox="0 0 24 24">
                   <path
@@ -198,11 +303,12 @@ export function AuthView() {
               <Button
                 variant="outline"
                 size="md"
+                type="button"
                 onClick={() => {
-                  showToast("GitHub OAuth simulated");
-                  setActiveScreen("onboarding");
+                  showToast("OAuth login will be available in a future release.", "info");
                 }}
                 className="w-full text-xs font-semibold"
+                disabled={isSubmitting}
               >
                 <svg className="h-4 w-4 mr-1.5 fill-slate-900" viewBox="0 0 24 24">
                   <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />

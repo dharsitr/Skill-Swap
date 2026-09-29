@@ -24,12 +24,15 @@ export const POPULAR_SKILLS: SkillItem[] = [
 
 export const SKILL_CATEGORIES = ["All", "Code", "Design", "Business", "Language", "Music"] as const;
 
+export { LOCATIONS, TIMEZONES, DEFAULT_AVATARS } from "@/constants/config";
+
 export const AVATAR_OPTIONS = [
-  "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=160&auto=format&fit=crop&q=80",
-  "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=160&auto=format&fit=crop&q=80",
-  "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=160&auto=format&fit=crop&q=80",
-  "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=160&auto=format&fit=crop&q=80",
-  "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=160&auto=format&fit=crop&q=80",
+  "/avatars/avatar-1.svg",
+  "/avatars/avatar-2.svg",
+  "/avatars/avatar-3.svg",
+  "/avatars/avatar-4.svg",
+  "/avatars/avatar-5.svg",
+  "/avatars/avatar-6.svg",
 ];
 
 export const DAYS_OF_WEEK = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"] as const;
@@ -42,26 +45,6 @@ export const TIME_SLOTS = [
 ] as const;
 
 export const SESSION_DURATIONS = ["30 minutes", "45 minutes", "60 minutes"] as const;
-
-export const LOCATIONS = [
-  "Chennai, India",
-  "Bengaluru, India",
-  "San Francisco, USA",
-  "New York, USA",
-  "London, UK",
-  "Berlin, Germany",
-  "Singapore",
-  "Remote / Online",
-] as const;
-
-export const TIMEZONES = [
-  "Asia/Kolkata (IST, GMT+5:30)",
-  "America/New_York (EST, GMT-5)",
-  "America/Los_Angeles (PST, GMT-8)",
-  "Europe/London (BST, GMT+1)",
-  "Europe/Berlin (CET, GMT+2)",
-  "Asia/Singapore (SGT, GMT+8)",
-] as const;
 
 export interface SessionItem {
   id: string;
@@ -286,11 +269,11 @@ export const INITIAL_ONBOARDING_STATE: OnboardingState = {
   teachingSkills: ["Python", "UI/UX Design"],
   learningSkills: ["React & Next.js", "Figma"],
   fullName: "Dharsit R",
-  headline: "Full Stack Learner & Designer",
-  bio: "Curious builder passionate about full-stack web applications, modern interaction design, and mutual peer mentoring.",
+  headline: "",
+  bio: "",
   avatarUrl: AVATAR_OPTIONS[0],
   location: "Chennai, India",
-  timezone: "Asia/Kolkata (IST, GMT+5:30)",
+  timezone: "(UTC+05:30) India Standard Time - Chennai, Bengaluru, Mumbai, Delhi, Sri Lanka (IST)",
   availableDays: ["Monday", "Wednesday", "Friday"],
   preferredSlots: ["Evening (4:00 PM – 8:00 PM)"],
   sessionDuration: "45 minutes",

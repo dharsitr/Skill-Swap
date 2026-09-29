@@ -3,6 +3,8 @@ import { Database } from "@/types/database.types";
 import { getSupabaseEnv, isSupabaseConfigured } from "./config";
 
 let browserClientInstance: ReturnType<typeof createBrowserClient<Database>> | null = null;
+let cachedUrl: string | null = null;
+let cachedKey: string | null = null;
 
 /**
  * Creates or reuses a Supabase client for client-side components.
@@ -17,15 +19,18 @@ export function createClient() {
         "[SkillSwap Supabase] Supabase is not configured yet. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in .env.local to enable backend persistence."
       );
     }
-    // Return dummy client to prevent runtime crashes during initial Phase 4 development
+    // Return dummy client to prevent runtime crashes during initial development
     return createBrowserClient<Database>(
       url || "https://unconfigured.supabase.co",
       anonKey || "placeholder-anon-key-skillswap-phase4-unconfigured"
     );
   }
 
-  if (!browserClientInstance) {
+  // Invalidate and recreate if the configured URL or key changes
+  if (!browserClientInstance || cachedUrl !== url || cachedKey !== anonKey) {
     browserClientInstance = createBrowserClient<Database>(url, anonKey);
+    cachedUrl = url;
+    cachedKey = anonKey;
   }
 
   return browserClientInstance;
