@@ -4,18 +4,18 @@ import { supabase } from "@/lib/supabase/client";
 import { profileService } from "@/lib/supabase/services";
 
 const FALLBACK_USER: User = {
-  id: "user-1",
-  name: "Dharsit R",
-  email: "dharsit@example.com",
+  id: "user-default",
+  name: "",
+  email: "",
   avatarUrl: DEFAULT_AVATARS[0],
-  headline: "Full Stack Learner & Designer",
-  bio: "Curious builder passionate about full-stack web applications, modern interaction design, and mutual peer mentoring.",
-  location: "Chennai, India",
-  timezone: "Asia/Kolkata (IST, GMT+5:30)",
-  credits: 42,
-  rating: 5.0,
-  swapsCompleted: 12,
-  createdAt: "2026-01-15T00:00:00Z",
+  headline: "",
+  bio: "",
+  location: "",
+  timezone: "",
+  credits: 0,
+  rating: 0,
+  swapsCompleted: 0,
+  createdAt: new Date().toISOString(),
 };
 
 export const userService = {

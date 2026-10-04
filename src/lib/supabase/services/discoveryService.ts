@@ -5,7 +5,6 @@ import {
 } from "@/types/database.types";
 import { resolveClient, checkConfigured, ServiceResult } from "./utils";
 import { DAY_NAME_MAP } from "./availabilityService";
-import { MOCK_MENTORS } from "@/data/mockData";
 
 export interface DiscoverableSkill {
   id: string;
@@ -327,39 +326,9 @@ export const discoveryService = {
   },
 
   /**
-   * Translates MOCK_MENTORS into typed DiscoverableUser structure for reliable development.
+   * Fallback discoverable peers for offline or missing data.
    */
-  getFallbackDiscoverableUsers(excludeUserId?: string): DiscoverableUser[] {
-    return MOCK_MENTORS.filter((m) => m.id !== excludeUserId).map((m) => ({
-      id: m.id,
-      displayName: m.name,
-      username: m.name.toLowerCase().replace(/\s+/g, "_"),
-      headline: m.headline,
-      bio: `${m.name} is an experienced mentor specializing in ${m.teaches.join(", ")}. Passionate about sharing knowledge and learning from peers.`,
-      avatarUrl: m.avatar,
-      location: m.location,
-      timezone: "UTC+00:00",
-      teachSkills: m.teaches.map((skillName, idx) => ({
-        id: `mock-skill-t-${idx}-${skillName}`,
-        name: skillName,
-        category: "General",
-        type: "teach",
-      })),
-      learnSkills: m.wantsToLearn.map((skillName, idx) => ({
-        id: `mock-skill-l-${idx}-${skillName}`,
-        name: skillName,
-        category: "General",
-        type: "learn",
-      })),
-      availability: m.availableDays.map((dayName, idx) => ({
-        id: `mock-avail-${idx}-${dayName}`,
-        dayOfWeek: idx + 1,
-        dayName,
-        startTime: "09:00:00",
-        endTime: "17:00:00",
-      })),
-      availableDays: m.availableDays,
-      createdAt: new Date().toISOString(),
-    }));
+  getFallbackDiscoverableUsers(_excludeUserId?: string): DiscoverableUser[] {
+    return [];
   },
 };

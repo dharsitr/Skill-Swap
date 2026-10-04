@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 export interface AvatarProps extends ImgHTMLAttributes<HTMLImageElement> {
   size?: "xs" | "sm" | "md" | "lg" | "xl";
   fallback?: string;
+  name?: string;
   isOnline?: boolean;
 }
 
@@ -14,8 +15,9 @@ export function Avatar({
   className,
   src,
   alt = "User Avatar",
+  name,
   size = "md",
-  fallback = "U",
+  fallback,
   isOnline,
   ...props
 }: AvatarProps) {
@@ -41,6 +43,25 @@ export function Avatar({
     xl: "h-4 w-4 ring-2.5",
   };
 
+  // Derive initial from name, alt, or fallback (defaulting to the first letter of their name)
+  const getInitial = (): string => {
+    if (fallback && fallback.trim() && fallback !== "U") {
+      return fallback.trim().charAt(0).toUpperCase();
+    }
+    const candidate =
+      name ||
+      (alt && alt !== "User Avatar" && alt !== "Avatar" && alt !== "User" ? alt : "") ||
+      fallback ||
+      "";
+    const clean = candidate.trim().replace(/^[@#]/, "");
+    if (clean.length > 0) {
+      return clean.charAt(0).toUpperCase();
+    }
+    return "U";
+  };
+
+  const initial = getInitial();
+
   return (
     <div className={cn("relative inline-block select-none flex-shrink-0", sizes[size])}>
       {!hasError && src ? (
@@ -58,7 +79,7 @@ export function Avatar({
             className
           )}
         >
-          {fallback.slice(0, 2).toUpperCase()}
+          {initial}
         </div>
       )}
 

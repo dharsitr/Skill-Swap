@@ -100,7 +100,7 @@ export function Sidebar({ activeTab = "dashboard", onSelectTab, className }: Sid
             <Avatar src={onboardingData.avatarUrl} alt={onboardingData.fullName} size="sm" isOnline={true} />
             <div className="flex flex-col min-w-0">
               <span className="text-xs font-bold text-slate-900 truncate">
-                {onboardingData.fullName || "Dharsit R"}
+                {onboardingData.fullName || "User"}
               </span>
               <span className="text-[11px] font-semibold text-indigo-600 flex items-center gap-1">
                 <span>🪙</span> {userCredits} Credits

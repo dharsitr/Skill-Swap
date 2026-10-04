@@ -7,7 +7,7 @@ import {
   SkillType,
 } from "@/types/database.types";
 import { resolveClient, checkConfigured, ServiceResult } from "./utils";
-import { POPULAR_SKILLS } from "@/data/mockData";
+import { POPULAR_SKILLS } from "@/constants/config";
 
 export interface UserSkillWithDetails extends UserSkillRow {
   skill?: SkillDbRow;

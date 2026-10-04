@@ -1,7 +1,6 @@
 import { Conversation, ChatMessage } from "@/types";
-import { INITIAL_CONVERSATIONS } from "@/data/mockData";
 
-let conversationsStore: Conversation[] = [...INITIAL_CONVERSATIONS];
+let conversationsStore: Conversation[] = [];
 
 export const messageService = {
   async getConversations(): Promise<Conversation[]> {

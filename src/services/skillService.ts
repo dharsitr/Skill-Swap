@@ -1,5 +1,5 @@
 import { Skill, SkillCategory } from "@/types";
-import { POPULAR_SKILLS } from "@/data/mockData";
+import { POPULAR_SKILLS } from "@/constants/config";
 
 export const skillService = {
   async getSkills(category: SkillCategory | "All" = "All"): Promise<Skill[]> {
@@ -8,7 +8,7 @@ export const skillService = {
       name: s.name,
       category: s.category,
       icon: s.icon,
-      learnersCount: s.learners,
+      learnersCount: s.learners || "",
       badgeColor: s.badgeColor,
     }));
 

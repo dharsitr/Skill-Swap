@@ -86,7 +86,7 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
     };
   }, [user?.id]);
 
-  const displayName = profile?.display_name || user?.user_metadata?.full_name || onboardingData.fullName || "Dharsit R";
+  const displayName = profile?.display_name || user?.user_metadata?.full_name || onboardingData.fullName || user?.email?.split("@")[0] || "User";
   const avatarSrc = profile?.avatar_url || onboardingData.avatarUrl;
 
   const handleLogout = async (e: React.MouseEvent) => {

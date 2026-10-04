@@ -167,3 +167,52 @@ export interface UpdateReviewInput {
   comment?: string;
 }
 
+export interface SessionItem {
+  id: string;
+  topic: string;
+  partnerName: string;
+  partnerAvatar: string;
+  partnerRole: string;
+  role: "teaching" | "learning";
+  time: string;
+  duration: string;
+  date: string;
+  status: "upcoming" | "completed" | "cancelled";
+}
+
+export interface WalletTransaction {
+  id: string;
+  title: string;
+  date: string;
+  amount: number;
+  type: "earned" | "spent" | "bonus";
+  status: "Completed" | "Pending";
+}
+
+export interface OnboardingState {
+  teachingSkills: string[];
+  learningSkills: string[];
+  fullName: string;
+  headline: string;
+  bio: string;
+  avatarUrl: string;
+  location: string;
+  timezone: string;
+  availableDays: string[];
+  preferredSlots: string[];
+  sessionDuration: string;
+}
+
+export interface MentorProfile {
+  id: string;
+  name: string;
+  avatar: string;
+  headline: string;
+  rating: number;
+  swapsCompleted: number;
+  teaches: string[];
+  wantsToLearn: string[];
+  location: string;
+  availableDays: string[];
+}
+

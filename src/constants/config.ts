@@ -3,7 +3,7 @@ export const APP_CONFIG = {
   tagline: "Learn something. Teach something.",
   description: "The 1-on-1 peer skill exchange network powered by time credits.",
   welcomeCredits: 50,
-  defaultCredits: 42,
+  defaultCredits: 0,
   creditRatePerHour: 2, // 1 credit per 30 mins
 } as const;
 
@@ -316,3 +316,29 @@ export const DEFAULT_AVATARS = [
   "/avatars/avatar-5.svg",
   "/avatars/avatar-6.svg",
 ] as const;
+
+export const AVATAR_OPTIONS = DEFAULT_AVATARS;
+
+export interface SkillItem {
+  id: string;
+  name: string;
+  category: "Code" | "Design" | "Business" | "Language" | "Music" | "Other";
+  icon: string;
+  badgeColor: string;
+  learners?: string;
+}
+
+export const POPULAR_SKILLS: SkillItem[] = [
+  { id: "python", name: "Python", category: "Code", icon: "Code2", badgeColor: "bg-emerald-50 text-emerald-600 border-emerald-100" },
+  { id: "ui-ux", name: "UI/UX Design", category: "Design", icon: "Palette", badgeColor: "bg-indigo-50 text-indigo-600 border-indigo-100" },
+  { id: "react", name: "React & Next.js", category: "Code", icon: "Boxes", badgeColor: "bg-blue-50 text-blue-600 border-blue-100" },
+  { id: "figma", name: "Figma", category: "Design", icon: "PenTool", badgeColor: "bg-purple-50 text-purple-600 border-purple-100" },
+  { id: "spanish", name: "Spanish", category: "Language", icon: "Languages", badgeColor: "bg-amber-50 text-amber-600 border-amber-100" },
+  { id: "speaking", name: "Public Speaking", category: "Business", icon: "Mic", badgeColor: "bg-rose-50 text-rose-600 border-rose-100" },
+  { id: "guitar", name: "Acoustic Guitar", category: "Music", icon: "Music", badgeColor: "bg-teal-50 text-teal-600 border-teal-100" },
+  { id: "marketing", name: "Digital Marketing", category: "Business", icon: "TrendingUp", badgeColor: "bg-orange-50 text-orange-600 border-orange-100" },
+  { id: "french", name: "French", category: "Language", icon: "Globe", badgeColor: "bg-sky-50 text-sky-600 border-sky-100" },
+  { id: "product-mgmt", name: "Product Strategy", category: "Business", icon: "Compass", badgeColor: "bg-violet-50 text-violet-600 border-violet-100" },
+  { id: "photography", name: "Photography", category: "Design", icon: "Camera", badgeColor: "bg-pink-50 text-pink-600 border-pink-100" },
+  { id: "data-science", name: "Data Science", category: "Code", icon: "BarChart3", badgeColor: "bg-cyan-50 text-cyan-600 border-cyan-100" },
+];

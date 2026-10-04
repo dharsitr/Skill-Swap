@@ -13,11 +13,12 @@ import { Modal } from "@/components/ui/modal";
 import {
   POPULAR_SKILLS,
   SKILL_CATEGORIES,
-  MOCK_MENTORS,
-  MentorProfile,
   LOCATIONS,
   TIMEZONES,
-} from "@/data/mockData";
+} from "@/constants/config";
+import { MentorProfile } from "@/types";
+
+const MOCK_MENTORS: MentorProfile[] = [];
 import {
   Bell,
   ChevronDown,
@@ -1220,23 +1221,10 @@ export function DashboardView() {
         title="Notifications"
         description="Stay updated with incoming swap requests and reminders."
       >
-        <div className="space-y-3">
-          <div className="p-3.5 rounded-2xl bg-indigo-50/60 border border-indigo-100 flex items-start gap-3 text-xs">
-            <Sparkles className="h-4 w-4 text-indigo-600 flex-shrink-0 mt-0.5" />
-            <div>
-              <div className="font-bold text-slate-900">Priya Sharma accepted your UI/UX swap request</div>
-              <div className="text-slate-500 mt-0.5">Session scheduled for tomorrow at 4:00 PM.</div>
-            </div>
-          </div>
-          <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-100 flex items-start gap-3 text-xs">
-            <CheckCircle2 className="h-4 w-4 text-emerald-600 flex-shrink-0 mt-0.5" />
-            <div>
-              <div className="font-bold text-slate-900">Welcome bonus credited</div>
-              <div className="text-slate-500 mt-0.5">50 credits deposited to your account.</div>
-            </div>
-          </div>
-          <Button variant="outline" className="w-full" onClick={() => setActiveModal(null)}>
-            Mark all as read
+        <div className="space-y-4 py-6 text-center">
+          <p className="text-xs text-slate-500">No new notifications</p>
+          <Button variant="outline" size="sm" className="w-full" onClick={() => setActiveModal(null)}>
+            Close
           </Button>
         </div>
       </Modal>

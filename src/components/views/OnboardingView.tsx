@@ -32,7 +32,7 @@ import {
   LOCATIONS,
   TIMEZONES,
   SkillItem,
-} from "@/data/mockData";
+} from "@/constants/config";
 import {
   Sparkles,
   Search,
@@ -786,7 +786,7 @@ export function OnboardingView() {
                 </span>
               </div>
               <div className="flex flex-wrap items-center gap-4">
-                <Avatar src={onboardingData.avatarUrl} size="xl" className="ring-4 ring-indigo-500/20 shadow-md" />
+                <Avatar src={onboardingData.avatarUrl} alt={onboardingData.fullName} size="xl" className="ring-4 ring-indigo-500/20 shadow-md" />
 
                 <div className="flex flex-wrap items-center gap-2.5">
                   {AVATAR_OPTIONS.map((url, idx) => (
@@ -1130,7 +1130,7 @@ export function OnboardingView() {
             <div className="max-w-lg mx-auto bg-slate-50 rounded-2xl border border-slate-200/80 p-6 text-left space-y-4 mb-8">
               {/* Profile info preview */}
               <div className="flex items-center gap-3.5 pb-4 border-b border-slate-200/80">
-                <Avatar src={onboardingData.avatarUrl} size="lg" isOnline={true} />
+                <Avatar src={onboardingData.avatarUrl} alt={onboardingData.fullName} size="lg" isOnline={true} />
                 <div className="min-w-0">
                   <h4 className="text-sm font-bold text-slate-900 truncate">{onboardingData.fullName}</h4>
                   <p className="text-xs text-indigo-600 font-semibold truncate">{onboardingData.headline}</p>

@@ -7,7 +7,7 @@ import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { POPULAR_SKILLS, SKILL_CATEGORIES } from "@/data/mockData";
+import { POPULAR_SKILLS, SKILL_CATEGORIES } from "@/constants/config";
 import {
   Sparkles,
   ArrowRight,
@@ -285,7 +285,6 @@ export function LandingView() {
                     <h5 className="text-sm font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">
                       {skill.name}
                     </h5>
-                    <span className="text-xs text-slate-400">{skill.learners}</span>
                   </div>
                 </div>
                 <Badge variant="indigo" size="sm">

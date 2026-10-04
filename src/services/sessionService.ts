@@ -1,20 +1,6 @@
 import { Session, SessionStatus } from "@/types";
-import { UPCOMING_SESSIONS } from "@/data/mockData";
 
-let sessionsStore: Session[] = UPCOMING_SESSIONS.map((s) => ({
-  id: s.id,
-  topic: s.topic,
-  partnerId: "partner-" + s.id,
-  partnerName: s.partnerName,
-  partnerAvatar: s.partnerAvatar,
-  partnerRole: s.partnerRole || "Peer Mentor",
-  role: s.role,
-  scheduledAt: s.time,
-  duration: s.duration,
-  date: s.date,
-  status: s.status as SessionStatus,
-  meetingUrl: `https://meet.skillswap.app/room/${s.id}`,
-}));
+let sessionsStore: Session[] = [];
 
 export const sessionService = {
   async getSessions(statusFilter?: SessionStatus): Promise<Session[]> {

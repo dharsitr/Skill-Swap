@@ -175,7 +175,7 @@ export function AuthView() {
               {authMode === "signup" && (
                 <Input
                   label="Full Name"
-                  placeholder="e.g. Dharsit R"
+                  placeholder="e.g. Alex Morgan"
                   value={fullName}
                   onChange={(e) => {
                     setFullName(e.target.value);

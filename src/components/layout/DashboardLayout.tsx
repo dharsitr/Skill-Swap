@@ -25,7 +25,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const [notifModalOpen, setNotifModalOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState<number>(0);
 
-  const displayName = profile?.display_name || user?.user_metadata?.full_name || onboardingData.fullName || "Dharsit";
+  const displayName = profile?.display_name || user?.user_metadata?.full_name || onboardingData.fullName || user?.email?.split("@")[0] || "User";
   const avatarSrc = profile?.avatar_url || onboardingData.avatarUrl;
 
   // Sync unread notification count & auto-check 24h reminders

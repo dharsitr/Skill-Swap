@@ -16,7 +16,7 @@ import {
   UserSkillWithDetails,
 } from "@/lib/supabase/services";
 import { SkillDbRow } from "@/types/database.types";
-import { SKILL_CATEGORIES } from "@/data/mockData";
+import { SKILL_CATEGORIES } from "@/constants/config";
 import {
   Plus,
   Trash2,

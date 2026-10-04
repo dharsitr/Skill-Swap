@@ -2,15 +2,32 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import {
-  INITIAL_ONBOARDING_STATE,
   OnboardingState,
-  UPCOMING_SESSIONS,
   SessionItem,
-  INITIAL_CONVERSATIONS,
   Conversation,
-  INITIAL_TRANSACTIONS,
   WalletTransaction,
-} from "@/data/mockData";
+} from "@/types";
+import { AVATAR_OPTIONS } from "@/constants/config";
+
+export type { OnboardingState, SessionItem, Conversation, WalletTransaction };
+
+export const INITIAL_ONBOARDING_STATE: OnboardingState = {
+  teachingSkills: [],
+  learningSkills: [],
+  fullName: "",
+  headline: "",
+  bio: "",
+  avatarUrl: AVATAR_OPTIONS[0],
+  location: "",
+  timezone: "",
+  availableDays: [],
+  preferredSlots: [],
+  sessionDuration: "45 minutes",
+};
+
+export const UPCOMING_SESSIONS: SessionItem[] = [];
+export const INITIAL_CONVERSATIONS: Conversation[] = [];
+export const INITIAL_TRANSACTIONS: WalletTransaction[] = [];
 
 export type ActiveScreen = "landing" | "auth" | "onboarding" | "dashboard";
 
@@ -42,55 +59,46 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-const STORAGE_KEY = "skillswap_state_v2";
-
-function getStoredValue<T>(key: string, fallback: T): T {
-  if (typeof window === "undefined") return fallback;
-  try {
-    const item = localStorage.getItem(STORAGE_KEY);
-    if (!item) return fallback;
-    const parsed = JSON.parse(item);
-    return parsed[key] !== undefined ? parsed[key] : fallback;
-  } catch {
-    return fallback;
-  }
-}
+const STORAGE_KEY = "skillswap_state_v3";
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [activeScreen, setActiveScreen] = useState<ActiveScreen>(() => getStoredValue("activeScreen", "landing"));
-  const [activeTab, setActiveTab] = useState<string>(() => getStoredValue("activeTab", "dashboard"));
+  const [activeScreen, setActiveScreen] = useState<ActiveScreen>("landing");
+  const [activeTab, setActiveTab] = useState<string>("dashboard");
   const [authMode, setAuthMode] = useState<"login" | "signup">("login");
-  const [onboardingData, setOnboardingData] = useState<OnboardingState>(() => {
-    const stored = getStoredValue<OnboardingState>("onboardingData", INITIAL_ONBOARDING_STATE);
-    const legacyTzMatch =
-      stored.timezone === "Asia/Kolkata (IST, GMT+5:30)"
-        ? INITIAL_ONBOARDING_STATE.timezone
-        : stored.timezone;
-    return {
-      ...stored,
-      headline:
-        stored.headline === "Full Stack Learner & Designer" || !stored.headline ? "" : stored.headline,
-      bio:
-        stored.bio?.startsWith("Curious builder passionate") || !stored.bio ? "" : stored.bio,
-      avatarUrl:
-        !stored.avatarUrl || stored.avatarUrl.includes("images.unsplash.com")
-          ? INITIAL_ONBOARDING_STATE.avatarUrl
-          : stored.avatarUrl,
-      timezone: legacyTzMatch || INITIAL_ONBOARDING_STATE.timezone,
-    };
-  });
-  const [onboardingStep, setOnboardingStep] = useState<number>(() => getStoredValue("onboardingStep", 1));
-  const [userCredits, setUserCredits] = useState<number>(() => getStoredValue("userCredits", 42));
-  const [welcomeCreditsAwarded, setWelcomeCreditsAwarded] = useState<boolean>(() =>
-    getStoredValue("welcomeCreditsAwarded", false)
-  );
-  const [sessions, setSessions] = useState<SessionItem[]>(() => getStoredValue("sessions", UPCOMING_SESSIONS));
+  const [onboardingData, setOnboardingData] = useState<OnboardingState>(INITIAL_ONBOARDING_STATE);
+  const [onboardingStep, setOnboardingStep] = useState<number>(1);
+  const [userCredits, setUserCredits] = useState<number>(0);
+  const [welcomeCreditsAwarded, setWelcomeCreditsAwarded] = useState<boolean>(false);
+  const [sessions, setSessions] = useState<SessionItem[]>(UPCOMING_SESSIONS);
   const [conversations, setConversations] = useState<Conversation[]>(INITIAL_CONVERSATIONS);
   const [transactions, setTransactions] = useState<WalletTransaction[]>(INITIAL_TRANSACTIONS);
   const [toast, setToast] = useState<{ message: string; type: "success" | "info" | "error" } | null>(null);
+  const [isLoaded, setIsLoaded] = useState(false);
 
-  // Sync state changes to localStorage
+  // Load from localStorage on client mount (SSR-safe, prevents hydration mismatches)
   useEffect(() => {
+    try {
+      localStorage.removeItem("skillswap_state_v2");
+      const item = localStorage.getItem(STORAGE_KEY);
+      if (item) {
+        const parsed = JSON.parse(item);
+        if (parsed.activeScreen) setActiveScreen(parsed.activeScreen);
+        if (parsed.activeTab) setActiveTab(parsed.activeTab);
+        if (parsed.onboardingData) setOnboardingData(parsed.onboardingData);
+        if (parsed.onboardingStep !== undefined) setOnboardingStep(parsed.onboardingStep);
+        if (parsed.userCredits !== undefined) setUserCredits(parsed.userCredits);
+        if (parsed.welcomeCreditsAwarded !== undefined) setWelcomeCreditsAwarded(parsed.welcomeCreditsAwarded);
+        if (parsed.sessions) setSessions(parsed.sessions);
+      }
+    } catch {
+      // Ignore parse/storage errors
+    }
+    setIsLoaded(true);
+  }, []);
+
+  // Sync state changes to localStorage only after initial client load
+  useEffect(() => {
+    if (!isLoaded) return;
     try {
       localStorage.setItem(
         STORAGE_KEY,
@@ -107,7 +115,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } catch {
       // Ignore quota errors
     }
-  }, [onboardingData, onboardingStep, userCredits, welcomeCreditsAwarded, activeScreen, activeTab, sessions]);
+  }, [isLoaded, onboardingData, onboardingStep, userCredits, welcomeCreditsAwarded, activeScreen, activeTab, sessions]);
 
   const updateOnboardingData = (partial: Partial<OnboardingState>) => {
     setOnboardingData((prev) => ({ ...prev, ...partial }));
@@ -208,16 +216,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const resetDemo = () => {
     if (typeof window !== "undefined") {
       localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem("skillswap_state_v2");
     }
     setOnboardingData(INITIAL_ONBOARDING_STATE);
     setOnboardingStep(1);
-    setUserCredits(42);
+    setUserCredits(0);
     setWelcomeCreditsAwarded(false);
-    setSessions(UPCOMING_SESSIONS);
-    setConversations(INITIAL_CONVERSATIONS);
+    setSessions([]);
+    setConversations([]);
+    setTransactions([]);
     setActiveScreen("landing");
     setActiveTab("dashboard");
-    showToast("Demo reset to initial state.", "info");
+    showToast("Application state cleared.", "info");
   };
 
   return (
