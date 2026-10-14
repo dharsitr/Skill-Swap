@@ -74,13 +74,26 @@ function MessagesContent() {
   // Read receipts preference state (Phase 17)
   const [readReceiptsEnabled, setReadReceiptsEnabled] = useState(true);
 
+  // Online users presence state
+  const [onlineUserIds, setOnlineUserIds] = useState<Set<string>>(new Set());
+
   // Ref for auto-scroll
   const messagesEndRef = useRef<HTMLDivElement>(null);
-
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
+
+  // Subscribe to real-time user presence (online/offline tracking)
+  useEffect(() => {
+    if (!user) return;
+    const unsubscribe = chatService.subscribeToPresence(user.id, (onlineIds) => {
+      setOnlineUserIds(onlineIds);
+    });
+    return () => {
+      unsubscribe();
+    };
+  }, [user]);
 
   // 1. Fetch conversations for logged-in user
   const loadConversations = useCallback(async () => {
@@ -132,11 +145,16 @@ function MessagesContent() {
     }
   }, [user, authLoading, loadConversations]);
 
-
   // Active conversation object
   const activeConversation = useMemo(() => {
     return conversations.find((c) => c.id === activeConvId) || null;
   }, [conversations, activeConvId]);
+
+  // Whether the active peer is currently online on the internet
+  const isPeerOnline = useMemo(() => {
+    if (!activeConversation?.peer?.id) return false;
+    return onlineUserIds.has(activeConversation.peer.id);
+  }, [activeConversation, onlineUserIds]);
 
   // 3. Load messages when activeConvId changes
   useEffect(() => {
@@ -168,8 +186,21 @@ function MessagesContent() {
     const unsubscribe = chatService.subscribeToConversation(activeConvId, {
       onNewMessage: (newMsg) => {
         setMessages((prev) => {
-          // Prevent duplicates (e.g. from optimistic send)
+          // Prevent duplicates by ID
           if (prev.some((m) => m.id === newMsg.id)) return prev;
+
+          // If this is my own message arriving via realtime, replace the optimistic temp message
+          if (newMsg.sender_id === user.id) {
+            const tempIndex = prev.findIndex(
+              (m) => m.id.startsWith("temp-") && m.content === newMsg.content
+            );
+            if (tempIndex !== -1) {
+              const updated = [...prev];
+              updated[tempIndex] = newMsg;
+              return updated;
+            }
+          }
+
           return [...prev, newMsg];
         });
 
@@ -195,7 +226,15 @@ function MessagesContent() {
       },
       onMessageUpdated: (updMsg) => {
         setMessages((prev) =>
-          prev.map((m) => (m.id === updMsg.id ? { ...m, ...updMsg } : m))
+          prev.map((m) =>
+            m.id === updMsg.id
+              ? {
+                  ...m,
+                  read_at: updMsg.read_at,
+                  updated_at: updMsg.updated_at,
+                }
+              : m
+          )
         );
       },
     });
@@ -239,10 +278,14 @@ function MessagesContent() {
         setMessages((prev) => prev.filter((m) => m.id !== tempId));
         setMessageInput(content);
       } else if (res.data) {
-        // Replace temp message with server message
-        setMessages((prev) =>
-          prev.map((m) => (m.id === tempId ? res.data! : m))
-        );
+        setMessages((prev) => {
+          // If realtime subscription already added or matched this message, remove temp message
+          if (prev.some((m) => m.id === res.data!.id)) {
+            return prev.filter((m) => m.id !== tempId);
+          }
+          // Otherwise replace temp message with server message
+          return prev.map((m) => (m.id === tempId ? res.data! : m));
+        });
         // Update conversation list
         setConversations((prev) =>
           prev.map((c) =>
@@ -353,7 +396,7 @@ function MessagesContent() {
                         src={conv.peer.avatar_url || undefined}
                         alt={peerName}
                         size="md"
-                        isOnline={true}
+                        isOnline={onlineUserIds.has(conv.peer.id)}
                       />
                       {conv.unreadCount > 0 && (
                         <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-indigo-600 text-white text-[9px] font-bold flex items-center justify-center ring-2 ring-white">
@@ -431,16 +474,30 @@ function MessagesContent() {
                     src={activeConversation.peer.avatar_url || undefined}
                     alt={activeConversation.peer.display_name || "Peer"}
                     size="sm"
-                    isOnline={true}
+                    isOnline={isPeerOnline}
                   />
 
                   <div>
                     <h4 className="text-xs font-bold text-slate-900">
                       {activeConversation.peer.display_name || "Community Member"}
                     </h4>
-                    <p className="text-[10px] text-slate-400">
-                      {activeConversation.peer.headline || `@${activeConversation.peer.username || "user"}`}
-                    </p>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      {isPeerOnline ? (
+                        <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                          Online
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-slate-400 font-medium flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-slate-300" />
+                          Offline
+                        </span>
+                      )}
+                      <span className="text-slate-300 text-[10px]">·</span>
+                      <p className="text-[10px] text-slate-500 truncate max-w-[150px] sm:max-w-xs">
+                        {activeConversation.peer.headline || `@${activeConversation.peer.username || "user"}`}
+                      </p>
+                    </div>
                   </div>
                 </div>
 
@@ -493,11 +550,13 @@ function MessagesContent() {
                         <div className="flex items-center gap-1 mt-1 px-1 text-[10px] text-slate-400">
                           <span>{formatMessageTime(m.created_at)}</span>
                           {isMe && (
-                            <span>
+                            <span className="flex items-center">
                               {m.id.startsWith("temp-") ? (
-                                <Clock className="h-2.5 w-2.5 inline" />
+                                <Clock className="h-2.5 w-2.5 inline text-slate-400" />
                               ) : m.read_at && readReceiptsEnabled ? (
-                                <CheckCheck className="h-3 w-3 inline text-indigo-600" />
+                                <CheckCheck className="h-3 w-3 inline text-emerald-500 font-bold" />
+                              ) : isPeerOnline ? (
+                                <CheckCheck className="h-3 w-3 inline text-slate-400" />
                               ) : (
                                 <Check className="h-2.5 w-2.5 inline text-slate-400" />
                               )}

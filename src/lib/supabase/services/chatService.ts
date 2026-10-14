@@ -554,4 +554,55 @@ export const chatService = {
       sb.removeChannel(channel);
     };
   },
+
+  /**
+   * Tracks and subscribes to real-time online presence for chat users.
+   * Returns a cleanup function to untrack and remove the presence channel.
+   */
+  subscribeToPresence(
+    userId: string,
+    onPresenceChange: (onlineUserIds: Set<string>) => void,
+    client?: SupabaseClient<Database>
+  ): () => void {
+    if (!checkConfigured() || !userId) {
+      return () => {};
+    }
+
+    const sb = resolveClient(client);
+    const channel = sb.channel("global-chat-presence", {
+      config: {
+        presence: {
+          key: userId,
+        },
+      },
+    });
+
+    const updatePresenceState = () => {
+      const presenceState = channel.presenceState();
+      const onlineIds = new Set<string>();
+      Object.keys(presenceState).forEach((key) => {
+        onlineIds.add(key);
+      });
+      onPresenceChange(onlineIds);
+    };
+
+    channel
+      .on("presence", { event: "sync" }, updatePresenceState)
+      .on("presence", { event: "join" }, updatePresenceState)
+      .on("presence", { event: "leave" }, updatePresenceState)
+      .subscribe(async (status) => {
+        if (status === "SUBSCRIBED") {
+          await channel.track({
+            user_id: userId,
+            online_at: new Date().toISOString(),
+          });
+        }
+      });
+
+    return () => {
+      channel.untrack().catch(() => {});
+      sb.removeChannel(channel);
+    };
+  },
 };
+
