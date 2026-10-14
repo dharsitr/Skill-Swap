@@ -21,6 +21,7 @@ export const DASHBOARD_NAV_ITEMS = [
   { id: "credits", label: "Wallet & Credits", href: "/dashboard/credits", iconName: "Coins" },
   { id: "sessions", label: "Sessions", href: "/dashboard/sessions", iconName: "Calendar" },
   { id: "messages", label: "Messages", href: "/dashboard/messages", iconName: "MessageSquare" },
+  { id: "notifications", label: "Notifications", href: "/dashboard/notifications", iconName: "Bell" },
   { id: "profile", label: "Profile", href: "/dashboard/profile", iconName: "User" },
   { id: "settings", label: "Settings", href: "/dashboard/settings", iconName: "Settings" },
 ] as const;

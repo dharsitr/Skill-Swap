@@ -113,6 +113,12 @@ export const notificationService = {
       const sb = resolveClient(client);
       const message = params.message || params.content || "";
 
+      // Validate UUID syntax for reference_id to avoid Postgres error
+      const isValidUuid = (val?: string | null) =>
+        typeof val === "string" &&
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(val);
+      const safeReferenceId = isValidUuid(params.referenceId) ? params.referenceId : null;
+
       // Enforce notification preferences (Phase 17)
       const { data: pref } = await sb
         .from("notification_preferences")
@@ -152,22 +158,21 @@ export const notificationService = {
         p_title: params.title,
         p_message: message,
         p_link_url: params.linkUrl || null,
-        p_reference_id: params.referenceId || null,
+        p_reference_id: safeReferenceId,
       });
 
       if (!rpcErr && rpcId) {
         return { data: rpcId, error: null };
       }
 
-
       // Fallback: check deduplication and insert directly
-      if (params.referenceId) {
+      if (safeReferenceId) {
         const { data: existing } = await sb
           .from("notifications")
           .select("id")
           .eq("user_id", params.userId)
           .eq("type", params.type)
-          .eq("reference_id", params.referenceId)
+          .eq("reference_id", safeReferenceId)
           .maybeSingle();
 
         if (existing) {
@@ -183,7 +188,7 @@ export const notificationService = {
           title: params.title,
           message: message,
           link_url: params.linkUrl || null,
-          reference_id: params.referenceId || null,
+          reference_id: safeReferenceId,
           read: false,
         })
         .select("id")
@@ -387,6 +392,76 @@ export const notificationService = {
   },
 
   /**
+   * Clears/deletes all notifications for a given user.
+   */
+  async clearAllNotifications(
+    userId: string,
+    client?: SupabaseClient<Database>
+  ): Promise<ServiceResult<boolean>> {
+    if (!checkConfigured()) {
+      return { data: true, error: null };
+    }
+
+    try {
+      const sb = resolveClient(client);
+      const { error } = await sb
+        .from("notifications")
+        .delete()
+        .eq("user_id", userId);
+
+      if (error) {
+        return { data: false, error: error.message };
+      }
+
+      return { data: true, error: null };
+    } catch (err: unknown) {
+      return {
+        data: false,
+        error: err instanceof Error ? err.message : "Failed to clear notifications.",
+      };
+    }
+  },
+
+  /**
+   * Fetches active peers from profiles to populate target users for notification sending.
+   */
+  async getRecentPeers(
+    currentUserId: string,
+    client?: SupabaseClient<Database>
+  ): Promise<ServiceResult<{ id: string; display_name: string; avatar_url: string | null }[]>> {
+    if (!checkConfigured()) {
+      return { data: [], error: null };
+    }
+
+    try {
+      const sb = resolveClient(client);
+      const { data, error } = await sb
+        .from("profiles")
+        .select("id, display_name, avatar_url")
+        .neq("id", currentUserId)
+        .limit(20);
+
+      if (error) {
+        return { data: [], error: error.message };
+      }
+
+      return {
+        data: (data || []).map((p) => ({
+          id: p.id,
+          display_name: p.display_name || "Peer User",
+          avatar_url: p.avatar_url,
+        })),
+        error: null,
+      };
+    } catch (err: unknown) {
+      return {
+        data: [],
+        error: err instanceof Error ? err.message : "Failed to load peers.",
+      };
+    }
+  },
+
+  /**
    * Subscribes to real-time notification changes for the given user.
    * Returns an unsubscribe callback.
    */
@@ -395,6 +470,7 @@ export const notificationService = {
     callbacks: {
       onNewNotification: (notification: NotificationDbRow) => void;
       onNotificationUpdated?: (notification: NotificationDbRow) => void;
+      onNotificationDeleted?: (notificationId: string) => void;
     },
     client?: SupabaseClient<Database>
   ): () => void {
@@ -416,7 +492,9 @@ export const notificationService = {
           filter: `user_id=eq.${userId}`,
         },
         (payload) => {
-          callbacks.onNewNotification(payload.new as NotificationDbRow);
+          if (payload.new) {
+            callbacks.onNewNotification(payload.new as NotificationDbRow);
+          }
         }
       )
       .on(
@@ -428,8 +506,22 @@ export const notificationService = {
           filter: `user_id=eq.${userId}`,
         },
         (payload) => {
-          if (callbacks.onNotificationUpdated) {
+          if (callbacks.onNotificationUpdated && payload.new) {
             callbacks.onNotificationUpdated(payload.new as NotificationDbRow);
+          }
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "DELETE",
+          schema: "public",
+          table: "notifications",
+          filter: `user_id=eq.${userId}`,
+        },
+        (payload) => {
+          if (callbacks.onNotificationDeleted && payload.old) {
+            callbacks.onNotificationDeleted((payload.old as { id: string }).id);
           }
         }
       )

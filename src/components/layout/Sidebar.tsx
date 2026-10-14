@@ -19,9 +19,10 @@ import {
   Sparkles,
   LogOut,
   LucideIcon,
+  Bell,
 } from "lucide-react";
 import { CreditBalance } from "@/components/credits/CreditBalance";
-import { sessionService, chatService } from "@/lib/supabase/services";
+import { sessionService, chatService, notificationService } from "@/lib/supabase/services";
 import { cn } from "@/lib/utils";
 
 interface SidebarProps {
@@ -36,6 +37,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
   Coins,
   Calendar,
   MessageSquare,
+  Bell,
   User,
   Settings,
 };
@@ -48,11 +50,13 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
 
   const [sessionCount, setSessionCount] = React.useState<number>(0);
   const [unreadMessageCount, setUnreadMessageCount] = React.useState<number>(0);
+  const [unreadNotifCount, setUnreadNotifCount] = React.useState<number>(0);
 
   React.useEffect(() => {
     if (!user?.id) {
       setSessionCount(0);
       setUnreadMessageCount(0);
+      setUnreadNotifCount(0);
       return;
     }
 
@@ -60,8 +64,9 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
     Promise.all([
       sessionService.getUserSessions(user.id),
       chatService.getUserConversations(user.id),
+      notificationService.getUnreadCount(user.id),
     ])
-      .then(([sessRes, convRes]) => {
+      .then(([sessRes, convRes, notifRes]) => {
         if (!isMounted) return;
         if (sessRes.data) {
           const activeSessions = sessRes.data.filter(
@@ -76,13 +81,38 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
           );
           setUnreadMessageCount(totalUnread);
         }
+        if (typeof notifRes.data === "number") {
+          setUnreadNotifCount(notifRes.data);
+        }
       })
       .catch(() => {
         // Fallback to 0
       });
 
+    // Real-time subscription to notifications for sidebar badge
+    const unsubscribeNotifs = notificationService.subscribeToNotifications(user.id, {
+      onNewNotification: () => {
+        if (isMounted) setUnreadNotifCount((prev) => prev + 1);
+      },
+      onNotificationUpdated: () => {
+        if (isMounted) {
+          notificationService.getUnreadCount(user.id).then((res) => {
+            if (isMounted && typeof res.data === "number") setUnreadNotifCount(res.data);
+          });
+        }
+      },
+      onNotificationDeleted: () => {
+        if (isMounted) {
+          notificationService.getUnreadCount(user.id).then((res) => {
+            if (isMounted && typeof res.data === "number") setUnreadNotifCount(res.data);
+          });
+        }
+      },
+    });
+
     return () => {
       isMounted = false;
+      unsubscribeNotifs();
     };
   }, [user?.id]);
 
@@ -156,6 +186,8 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
                       ? sessionCount
                       : item.id === "messages" && unreadMessageCount > 0
                       ? unreadMessageCount
+                      : item.id === "notifications" && unreadNotifCount > 0
+                      ? unreadNotifCount
                       : undefined;
 
                   if (!badge) return null;

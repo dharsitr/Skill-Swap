@@ -9,6 +9,7 @@ import {
   GraduationCap,
   Calendar,
   MessageSquare,
+  Bell,
   Wallet,
   Settings,
   Sparkles,
@@ -31,6 +32,7 @@ export function Sidebar({ activeTab = "dashboard", onSelectTab, className }: Sid
     { id: "my-skills", label: "My Skills", icon: GraduationCap },
     { id: "sessions", label: "Sessions", icon: Calendar },
     { id: "messages", label: "Messages", icon: MessageSquare },
+    { id: "notifications", label: "Notifications", icon: Bell },
     { id: "wallet", label: "Wallet", icon: Wallet },
     { id: "settings", label: "Settings", icon: Settings },
   ];

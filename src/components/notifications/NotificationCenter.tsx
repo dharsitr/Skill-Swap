@@ -129,6 +129,9 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
           prev.map((n) => (n.id === updNotif.id ? updNotif : n))
         );
       },
+      onNotificationDeleted: (deletedId) => {
+        setNotifications((prev) => prev.filter((n) => n.id !== deletedId));
+      },
     });
 
     return () => unsubscribe();
@@ -352,6 +355,20 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
               </div>
             </div>
           )}
+        </div>
+
+        {/* Footer */}
+        <div className="p-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-xs">
+          <button
+            onClick={() => {
+              onClose();
+              router.push("/dashboard/notifications");
+            }}
+            className="w-full py-2 px-3 text-center font-bold text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50/80 rounded-xl transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+          >
+            <span>Open Full Notification Center</span>
+            <ExternalLink className="w-3.5 h-3.5" />
+          </button>
         </div>
       </div>
     </div>

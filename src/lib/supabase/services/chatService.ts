@@ -6,6 +6,7 @@ import {
   ProfileRow,
 } from "@/types/database.types";
 import { resolveClient, checkConfigured, ServiceResult } from "./utils";
+import { notificationService } from "./notificationService";
 
 import {
   sanitizeChatMessage,
@@ -234,6 +235,37 @@ export const chatService = {
         .from("conversations")
         .update({ updated_at: new Date().toISOString() })
         .eq("id", conversationId);
+
+      // Notify recipient peer
+      try {
+        const { data: participants } = await sb
+          .from("conversation_participants")
+          .select("user_id")
+          .eq("conversation_id", conversationId)
+          .neq("user_id", senderId);
+
+        if (participants && participants.length > 0) {
+          const senderProfile = (data as unknown as { sender?: { display_name?: string } })?.sender;
+          const senderName = senderProfile?.display_name || "A peer";
+          const preview = sanitized.length > 60 ? `${sanitized.slice(0, 57)}...` : sanitized;
+
+          for (const p of participants) {
+            await notificationService.createNotification(
+              {
+                userId: p.user_id,
+                type: "message",
+                title: `New message from ${senderName}`,
+                message: preview,
+                linkUrl: `/dashboard/messages`,
+                referenceId: data.id,
+              },
+              sb
+            );
+          }
+        }
+      } catch {
+        // Notification delivery is best effort, don't fail message sending
+      }
 
       return { data: data as ChatMessage, error: null };
     } catch (err: unknown) {

@@ -13,13 +13,15 @@ import { NotificationCenter } from "@/components/notifications/NotificationCente
 import { notificationService } from "@/lib/supabase/services/notificationService";
 import { Bell, ChevronDown, Menu } from "lucide-react";
 
+import { playNotificationChime } from "@/lib/utils";
+
 interface DashboardLayoutProps {
   children: ReactNode;
 }
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
   const pathname = usePathname();
-  const { onboardingData } = useApp();
+  const { onboardingData, showToast } = useApp();
   const { user, profile } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [notifModalOpen, setNotifModalOpen] = useState(false);
@@ -53,12 +55,19 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
     // Real-time subscription to notifications
     const unsubscribe = notificationService.subscribeToNotifications(user.id, {
-      onNewNotification: () => {
+      onNewNotification: (notif) => {
         if (isMounted) {
           setUnreadCount((prev) => prev + 1);
+          playNotificationChime();
+          showToast(`🔔 ${notif.title}: ${notif.message || ""}`, "info");
         }
       },
       onNotificationUpdated: () => {
+        if (isMounted) {
+          fetchUnread();
+        }
+      },
+      onNotificationDeleted: () => {
         if (isMounted) {
           fetchUnread();
         }
@@ -69,7 +78,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       isMounted = false;
       unsubscribe();
     };
-  }, [user?.id]);
+  }, [user?.id, showToast]);
 
   // Generate page title segment
   const segments = pathname.split("/").filter(Boolean);
