@@ -2,9 +2,11 @@ import { SupabaseClient } from "@supabase/supabase-js";
 import {
   Database,
   ConnectionRequestRow,
+  ProfileRow,
 } from "@/types/database.types";
 import { resolveClient, checkConfigured, ServiceResult } from "./utils";
 import { notificationService } from "./notificationService";
+import { chatService } from "./chatService";
 import {
   sanitizeConnectionMessage,
   isValidUuid,
@@ -275,16 +277,16 @@ export const connectionService = {
 
   /**
    * Responds to an incoming connection request (accept or decline).
-   * Notifies the sender when accepted.
+   * Notifies the sender when accepted and establishes a 1-on-1 conversation.
    */
   async respondToRequest(
     requestId: string,
     receiverId: string,
     accept: boolean,
     client?: SupabaseClient<Database>
-  ): Promise<ServiceResult<boolean>> {
+  ): Promise<ServiceResult<{ success: boolean; senderId?: string }>> {
     if (!checkConfigured()) {
-      return { data: true, error: null };
+      return { data: { success: true }, error: null };
     }
 
     try {
@@ -300,29 +302,140 @@ export const connectionService = {
         .single();
 
       if (updateErr) {
-        return { data: false, error: updateErr.message };
+        return { data: null, error: updateErr.message };
       }
 
       if (accept && updated) {
+        // Automatically ensure conversation exists so peers can immediately chat
+        try {
+          await chatService.getOrCreateConversation(receiverId, updated.sender_id, sb);
+        } catch {
+          // Best effort
+        }
+
         // Notify the original sender
         notificationService
           .createNotification({
             userId: updated.sender_id,
             type: "connection_accepted",
-            title: "Connection Request Accepted",
+            title: "Connection Request Accepted! 🎉",
             content: "Your connection request was accepted! You can now chat and book sessions together.",
             linkUrl: `/dashboard/messages?userId=${receiverId}`,
             referenceId: requestId,
-          })
+          }, sb)
           .catch(() => {});
       }
 
-      return { data: true, error: null };
+      return { data: { success: true, senderId: updated?.sender_id }, error: null };
     } catch (err) {
       return {
-        data: false,
+        data: null,
         error: err instanceof Error ? err.message : "Failed to respond to request.",
       };
+    }
+  },
+
+  /**
+   * Retrieves a connection request by its ID with sender profile details.
+   */
+  async getRequestById(
+    requestId: string,
+    client?: SupabaseClient<Database>
+  ): Promise<ServiceResult<(ConnectionRequestRow & { sender?: ProfileRow | null }) | null>> {
+    if (!checkConfigured()) {
+      return { data: null, error: null };
+    }
+
+    try {
+      const sb = resolveClient(client);
+      const { data, error } = await sb
+        .from("connection_requests")
+        .select(`
+          *,
+          sender:profiles!connection_requests_sender_id_fkey(*)
+        `)
+        .eq("id", requestId)
+        .maybeSingle();
+
+      if (error) {
+        return { data: null, error: error.message };
+      }
+
+      return { data: data as (ConnectionRequestRow & { sender?: ProfileRow | null }), error: null };
+    } catch (err) {
+      return {
+        data: null,
+        error: err instanceof Error ? err.message : "Failed to fetch request.",
+      };
+    }
+  },
+
+  /**
+   * Retrieves all pending incoming connection requests for a user.
+   */
+  async getIncomingPendingRequests(
+    userId: string,
+    client?: SupabaseClient<Database>
+  ): Promise<ServiceResult<Array<ConnectionRequestRow & { sender?: ProfileRow | null }>>> {
+    if (!checkConfigured()) {
+      return { data: [], error: null };
+    }
+
+    try {
+      const sb = resolveClient(client);
+      const { data, error } = await sb
+        .from("connection_requests")
+        .select(`
+          *,
+          sender:profiles!connection_requests_sender_id_fkey(*)
+        `)
+        .eq("receiver_id", userId)
+        .eq("status", "pending")
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        return { data: [], error: error.message };
+      }
+
+      return { data: (data || []) as Array<ConnectionRequestRow & { sender?: ProfileRow | null }>, error: null };
+    } catch (err) {
+      return {
+        data: [],
+        error: err instanceof Error ? err.message : "Failed to fetch incoming connection requests.",
+      };
+    }
+  },
+
+  /**
+   * Retrieves all user IDs that the given user has an accepted connection with.
+   */
+  async getConnectedUserIds(
+    userId: string,
+    client?: SupabaseClient<Database>
+  ): Promise<ServiceResult<string[]>> {
+    if (!checkConfigured()) {
+      return { data: [], error: null };
+    }
+
+    try {
+      const sb = resolveClient(client);
+      const { data, error } = await sb
+        .from("connection_requests")
+        .select("sender_id, receiver_id")
+        .eq("status", "accepted")
+        .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`);
+
+      if (error) {
+        return { data: [], error: error.message };
+      }
+
+      const connectedIds = (data || []).map((row) =>
+        row.sender_id === userId ? row.receiver_id : row.sender_id
+      );
+
+      return { data: Array.from(new Set(connectedIds)), error: null };
+    } catch {
+      return { data: [], error: null };
     }
   },
 };

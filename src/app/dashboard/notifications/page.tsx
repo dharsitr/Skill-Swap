@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { useApp } from "@/context/AppContext";
@@ -15,6 +16,8 @@ import {
   notificationService,
   NotificationType,
 } from "@/lib/supabase/services/notificationService";
+import { connectionService } from "@/lib/supabase/services/connectionService";
+import { createClient } from "@/lib/supabase/client";
 import { NotificationDbRow } from "@/types/database.types";
 import { playNotificationChime } from "@/lib/utils";
 import {
@@ -42,6 +45,8 @@ import {
   Info,
   ChevronRight,
   AlertCircle,
+  UserCheck,
+  UserX,
 } from "lucide-react";
 
 type FilterTab = "all" | "unread" | "sessions" | "connections" | "credits" | "reviews" | "system";
@@ -155,6 +160,12 @@ export default function NotificationsPage() {
   const [isRealtimeConnected, setIsRealtimeConnected] = useState(false);
   const [newlyArrivedId, setNewlyArrivedId] = useState<string | null>(null);
 
+  // Connection request action state
+  const [connectionStates, setConnectionStates] = useState<
+    Record<string, { status: "pending" | "accepted" | "declined"; senderId?: string }>
+  >({});
+  const [respondingReqId, setRespondingReqId] = useState<string | null>(null);
+
   // Actions loading
   const [isMarkingAll, setIsMarkingAll] = useState(false);
   const [isClearingAll, setIsClearingAll] = useState(false);
@@ -178,6 +189,30 @@ export default function NotificationsPage() {
       const res = await notificationService.getUserNotifications(user.id);
       if (res.data) {
         setNotifications(res.data);
+
+        // Fetch current status for any connection_request notifications
+        const connNotifs = res.data.filter(
+          (n) => (n.type === "connection_request" || n.type === "connection_accepted") && n.reference_id
+        );
+        if (connNotifs.length > 0) {
+          const reqIds = Array.from(new Set(connNotifs.map((n) => n.reference_id as string)));
+          const sb = createClient();
+          sb.from("connection_requests")
+            .select("id, status, sender_id")
+            .in("id", reqIds)
+            .then(({ data }) => {
+              if (data) {
+                const map: Record<string, { status: "pending" | "accepted" | "declined"; senderId?: string }> = {};
+                data.forEach((r) => {
+                  map[r.id] = {
+                    status: r.status as "pending" | "accepted" | "declined",
+                    senderId: r.sender_id,
+                  };
+                });
+                setConnectionStates((prev) => ({ ...prev, ...map }));
+              }
+            });
+        }
       }
     } catch {
       showToast("Failed to fetch notifications.", "error");
@@ -329,6 +364,9 @@ export default function NotificationsPage() {
 
   // Click row to navigate
   const handleRowClick = async (notif: NotificationDbRow) => {
+    // If it's a connection request with actions, don't auto-redirect on row click
+    if (notif.type === "connection_request") return;
+
     if (!notif.read) {
       await notificationService.markAsRead(notif.id);
       setNotifications((prev) =>
@@ -337,6 +375,59 @@ export default function NotificationsPage() {
     }
     if (notif.link_url) {
       router.push(notif.link_url);
+    }
+  };
+
+  // Respond to connection request (Accept / Decline)
+  const handleRespondConnection = async (
+    e: React.MouseEvent,
+    notif: NotificationDbRow,
+    accept: boolean
+  ) => {
+    e.stopPropagation();
+    if (!user?.id || !notif.reference_id) {
+      showToast("Cannot process connection request: missing reference ID.", "error");
+      return;
+    }
+
+    setRespondingReqId(notif.reference_id);
+    try {
+      const res = await connectionService.respondToRequest(
+        notif.reference_id,
+        user.id,
+        accept
+      );
+
+      if (res.error) {
+        showToast(res.error, "error");
+      } else {
+        const senderId = res.data?.senderId;
+        setConnectionStates((prev) => ({
+          ...prev,
+          [notif.reference_id as string]: {
+            status: accept ? "accepted" : "declined",
+            senderId,
+          },
+        }));
+
+        // Also mark this notification as read
+        if (!notif.read) {
+          await notificationService.markAsRead(notif.id);
+          setNotifications((prev) =>
+            prev.map((n) => (n.id === notif.id ? { ...n, read: true } : n))
+          );
+        }
+
+        if (accept) {
+          showToast("Connection accepted! You can now chat and book sessions together.", "success");
+        } else {
+          showToast("Connection request declined.", "info");
+        }
+      }
+    } catch {
+      showToast("An unexpected error occurred responding to connection request.", "error");
+    } finally {
+      setRespondingReqId(null);
     }
   };
 
@@ -594,13 +685,114 @@ export default function NotificationsPage() {
                     {notif.message}
                   </p>
 
+                  {/* Dynamic Action Buttons for Incoming Connection Requests */}
+                  {notif.type === "connection_request" && (
+                    <div className="mt-3 pt-1">
+                      {(() => {
+                        const connState = notif.reference_id
+                          ? connectionStates[notif.reference_id]
+                          : null;
+                        const status = connState?.status || "pending";
+                        const senderId = connState?.senderId;
+
+                        if (status === "accepted") {
+                          return (
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                Connected
+                              </span>
+                              <Link
+                                href={`/dashboard/messages${senderId ? `?userId=${senderId}` : ""}`}
+                                onClick={(e) => e.stopPropagation()}
+                                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-indigo-600 text-white hover:bg-indigo-700 shadow-xs transition-colors"
+                              >
+                                <MessageSquare className="w-3.5 h-3.5" />
+                                Start Chat
+                              </Link>
+                              <Link
+                                href="/dashboard/discover"
+                                onClick={(e) => e.stopPropagation()}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors"
+                              >
+                                <User className="w-3.5 h-3.5 text-slate-400" />
+                                View Peers
+                              </Link>
+                            </div>
+                          );
+                        }
+
+                        if (status === "declined") {
+                          return (
+                            <div className="flex items-center gap-2">
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200">
+                                Request Declined
+                              </span>
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <div className="flex flex-wrap items-center gap-2.5">
+                            <Button
+                              size="sm"
+                              variant="primary"
+                              onClick={(e) => handleRespondConnection(e, notif, true)}
+                              disabled={respondingReqId === notif.reference_id}
+                              className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-3.5 py-1.5 rounded-xl shadow-xs flex items-center gap-1.5 cursor-pointer"
+                            >
+                              {respondingReqId === notif.reference_id ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              ) : (
+                                <UserCheck className="w-3.5 h-3.5" />
+                              )}
+                              Accept Request
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={(e) => handleRespondConnection(e, notif, false)}
+                              disabled={respondingReqId === notif.reference_id}
+                              className="text-xs font-semibold px-3 py-1.5 rounded-xl border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-rose-600 flex items-center gap-1 cursor-pointer"
+                            >
+                              <UserX className="w-3.5 h-3.5 text-slate-400" />
+                              Decline
+                            </Button>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
+
+                  {/* Dynamic Action Buttons for Accepted Connection Alert */}
+                  {notif.type === "connection_accepted" && (
+                    <div className="mt-3 pt-1 flex flex-wrap items-center gap-2">
+                      <Link
+                        href={notif.link_url || "/dashboard/messages"}
+                        onClick={(e) => e.stopPropagation()}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-indigo-600 text-white hover:bg-indigo-700 shadow-xs transition-colors"
+                      >
+                        <MessageSquare className="w-3.5 h-3.5" />
+                        Chat Now
+                      </Link>
+                      <Link
+                        href="/dashboard/sessions"
+                        onClick={(e) => e.stopPropagation()}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors"
+                      >
+                        <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                        Book Session
+                      </Link>
+                    </div>
+                  )}
+
                   <div className="mt-2.5 flex flex-wrap items-center gap-3 text-[11px] text-slate-400">
                     <span className="flex items-center gap-1">
                       <Clock className="w-3 h-3 text-slate-400" />
                       {formatNotificationTime(notif.created_at)}
                     </span>
 
-                    {notif.link_url && (
+                    {notif.link_url && notif.type !== "connection_request" && notif.type !== "connection_accepted" && (
                       <div className="flex items-center gap-1 font-bold text-indigo-600 group-hover:text-indigo-700 transition-colors">
                         <span>View Details</span>
                         <ChevronRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />

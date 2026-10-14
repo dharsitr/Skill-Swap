@@ -46,6 +46,7 @@ import {
   BookOpen,
   ArrowUpDown,
   Star,
+  MessageSquare,
 } from "lucide-react";
 
 const COMPATIBILITY_OPTIONS = [
@@ -85,6 +86,9 @@ export default function DiscoverPage() {
     availableDays: [],
   });
   const [sentPendingIds, setSentPendingIds] = useState<Set<string>>(new Set());
+  const [incomingPendingMap, setIncomingPendingMap] = useState<Map<string, string>>(new Map());
+  const [connectedUserIds, setConnectedUserIds] = useState<Set<string>>(new Set());
+  const [isRespondingIncomingId, setIsRespondingIncomingId] = useState<string | null>(null);
   const [ratingsMap, setRatingsMap] = useState<
     Record<string, { averageRating: number; totalReviews: number }>
   >({});
@@ -133,10 +137,12 @@ export default function DiscoverPage() {
       };
 
       if (user?.id) {
-        const [skillsRes, availRes, sentRes] = await Promise.all([
+        const [skillsRes, availRes, sentRes, incomingRes, connectedRes] = await Promise.all([
           skillService.getUserSkills(user.id),
           availabilityService.getUserAvailability(user.id),
           connectionService.getSentPendingUserIds(user.id),
+          connectionService.getIncomingPendingRequests(user.id),
+          connectionService.getConnectedUserIds(user.id),
         ]);
 
         if (skillsRes.data) {
@@ -158,6 +164,18 @@ export default function DiscoverPage() {
 
         if (sentRes.data) {
           setSentPendingIds(new Set(sentRes.data));
+        }
+
+        if (incomingRes.data) {
+          const map = new Map<string, string>();
+          incomingRes.data.forEach((r) => {
+            map.set(r.sender_id, r.id);
+          });
+          setIncomingPendingMap(map);
+        }
+
+        if (connectedRes.data) {
+          setConnectedUserIds(new Set(connectedRes.data));
         }
       }
 
@@ -307,6 +325,30 @@ export default function DiscoverPage() {
       showToast("Could not send connection request. Please try again.");
     } finally {
       setIsSendingRequest(false);
+    }
+  };
+
+  // Accept incoming connection request from discover grid
+  const handleAcceptIncomingConnection = async (peer: DiscoverableUser, requestId: string) => {
+    if (!user?.id) return;
+    setIsRespondingIncomingId(requestId);
+    try {
+      const res = await connectionService.respondToRequest(requestId, user.id, true);
+      if (res.data?.success) {
+        setIncomingPendingMap((prev) => {
+          const next = new Map(prev);
+          next.delete(peer.id);
+          return next;
+        });
+        setConnectedUserIds((prev) => new Set([...prev, peer.id]));
+        showToast(`Connected with ${peer.displayName}! You can now chat and swap skills.`, "success");
+      } else {
+        showToast(res.error || "Could not accept connection request.", "error");
+      }
+    } catch {
+      showToast("Error accepting connection request.", "error");
+    } finally {
+      setIsRespondingIncomingId(null);
     }
   };
 
@@ -620,27 +662,70 @@ export default function DiscoverPage() {
                       Book
                     </Button>
 
-                    {isPending ? (
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        disabled
-                        className="text-xs font-bold text-slate-500 bg-slate-100"
-                      >
-                        <CheckCircle2 className="h-3.5 w-3.5 mr-1 text-emerald-600" />
-                        Pending
-                      </Button>
-                    ) : (
-                      <Button
-                        variant="primary"
-                        size="sm"
-                        onClick={() => handleOpenConnectModal(peer)}
-                        className="text-xs font-bold shadow-xs"
-                      >
-                        <Send className="h-3 w-3 mr-1" />
-                        Connect
-                      </Button>
-                    )}
+                    {(() => {
+                      const isConnected = connectedUserIds.has(peer.id);
+                      const incomingRequestId = incomingPendingMap.get(peer.id);
+                      const isSentPending = sentPendingIds.has(peer.id);
+
+                      if (isConnected) {
+                        return (
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => router.push(`/dashboard/messages?userId=${peer.id}`)}
+                            className="text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 flex items-center gap-1 cursor-pointer"
+                          >
+                            <MessageSquare className="h-3 w-3" />
+                            Chat
+                          </Button>
+                        );
+                      }
+
+                      if (incomingRequestId) {
+                        return (
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            onClick={() => handleAcceptIncomingConnection(peer, incomingRequestId)}
+                            disabled={isRespondingIncomingId === incomingRequestId}
+                            className="text-xs font-bold bg-indigo-600 hover:bg-indigo-700 shadow-xs flex items-center gap-1 cursor-pointer"
+                          >
+                            {isRespondingIncomingId === incomingRequestId ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <CheckCircle2 className="h-3 w-3" />
+                            )}
+                            Accept Request
+                          </Button>
+                        );
+                      }
+
+                      if (isSentPending) {
+                        return (
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            disabled
+                            className="text-xs font-bold text-slate-500 bg-slate-100"
+                          >
+                            <CheckCircle2 className="h-3.5 w-3.5 mr-1 text-emerald-600" />
+                            Pending
+                          </Button>
+                        );
+                      }
+
+                      return (
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          onClick={() => handleOpenConnectModal(peer)}
+                          className="text-xs font-bold shadow-xs flex items-center gap-1 cursor-pointer"
+                        >
+                          <Send className="h-3 w-3 mr-1" />
+                          Connect
+                        </Button>
+                      );
+                    })()}
                   </div>
                 </div>
               </Card>
