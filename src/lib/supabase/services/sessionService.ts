@@ -326,6 +326,7 @@ export const sessionService = {
           return { data: null, error: insertErr.message };
         }
 
+        const newSessionId = insertData.id;
         const isImmediate = new Date(scheduledAt).getTime() - Date.now() < 5 * 60 * 1000;
         notificationService
           .createNotification({

@@ -21,11 +21,11 @@ async function deriveConversationKey(conversationId: string): Promise<CryptoKey 
   try {
     const encoder = new TextEncoder();
     const keyMaterial = encoder.encode(`skillswap_e2ee_secret_${conversationId}`);
-    const hash = await window.crypto.subtle.digest("SHA-256", keyMaterial);
+    const hash = await window.crypto.subtle.digest("SHA-256", keyMaterial as unknown as BufferSource);
 
     return await window.crypto.subtle.importKey(
       "raw",
-      hash,
+      hash as unknown as BufferSource,
       { name: "AES-GCM" },
       false,
       ["encrypt", "decrypt"]
@@ -85,10 +85,10 @@ export async function encryptMessage(
     const ciphertextBuffer = await window.crypto.subtle.encrypt(
       {
         name: "AES-GCM",
-        iv,
+        iv: iv as unknown as BufferSource,
       },
       key,
-      encodedData
+      encodedData as unknown as BufferSource
     );
 
     const ivBase64 = bufferToBase64(iv);
@@ -135,10 +135,10 @@ export async function decryptMessage(
     const decryptedBuffer = await window.crypto.subtle.decrypt(
       {
         name: "AES-GCM",
-        iv,
+        iv: iv as unknown as BufferSource,
       },
       key,
-      ciphertext
+      ciphertext as unknown as BufferSource
     );
 
     const decoder = new TextDecoder();
