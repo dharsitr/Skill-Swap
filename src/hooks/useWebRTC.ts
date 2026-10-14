@@ -16,6 +16,9 @@ interface UseWebRTCOptions {
   currentUserName: string;
   isInitiator?: boolean;
   expectedPeerId?: string;
+  initialStream?: MediaStream | null;
+  initialAudioEnabled?: boolean;
+  initialVideoEnabled?: boolean;
 }
 
 export function useWebRTC({
@@ -24,14 +27,17 @@ export function useWebRTC({
   currentUserName,
   isInitiator = false,
   expectedPeerId,
+  initialStream = null,
+  initialAudioEnabled = false,
+  initialVideoEnabled = false,
 }: UseWebRTCOptions) {
   // Streams state
-  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+  const [localStream, setLocalStream] = useState<MediaStream | null>(initialStream);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
 
-  // Controls state
-  const [isAudioMuted, setIsAudioMuted] = useState(false);
-  const [isVideoOff, setIsVideoOff] = useState(false);
+  // Controls state (Default camera is OFF)
+  const [isAudioMuted, setIsAudioMuted] = useState(!initialAudioEnabled);
+  const [isVideoOff, setIsVideoOff] = useState(!initialVideoEnabled);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
 
   // Connection & Remote State
@@ -49,8 +55,10 @@ export function useWebRTC({
   // Internal refs
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const channelRef = useRef<RealtimeChannel | null>(null);
-  const localStreamRef = useRef<MediaStream | null>(null);
-  const cameraTrackRef = useRef<MediaStreamTrack | null>(null);
+  const localStreamRef = useRef<MediaStream | null>(initialStream);
+  const cameraTrackRef = useRef<MediaStreamTrack | null>(
+    initialStream?.getVideoTracks()[0] || null
+  );
   const screenTrackRef = useRef<MediaStreamTrack | null>(null);
   const iceCandidateQueueRef = useRef<RTCIceCandidateInit[]>([]);
   const isCreatingOfferRef = useRef(false);
@@ -155,10 +163,27 @@ export function useWebRTC({
       setIceConnectionState(pc.iceConnectionState);
     };
 
+    // Ensure both audio and video transceivers exist so SDP negotiates both channels
+    try {
+      pc.addTransceiver("audio", { direction: "sendrecv" });
+      pc.addTransceiver("video", { direction: "sendrecv" });
+    } catch (e) {
+      console.warn("[WebRTC] addTransceiver note:", e);
+    }
+
     // Add local tracks if stream already acquired
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach((track) => {
-        pc.addTrack(track, localStreamRef.current!);
+        const sender = pc.getSenders().find((s) => s.track?.kind === track.kind);
+        if (sender) {
+          sender.replaceTrack(track).catch(() => {});
+        } else {
+          try {
+            pc.addTrack(track, localStreamRef.current!);
+          } catch (e) {
+            console.warn("[WebRTC] addTrack note:", e);
+          }
+        }
       });
     }
 
@@ -303,55 +328,49 @@ export function useWebRTC({
     let isCancelled = false;
 
     async function initLocalMedia() {
-      if (typeof window === "undefined" || !navigator.mediaDevices?.getUserMedia) {
-        setError("Your browser does not support WebRTC media capture.");
+      // 1. If an existing stream was passed from lobby preview
+      if (initialStream) {
+        localStreamRef.current = initialStream;
+        setLocalStream(initialStream);
+        const videoTrack = initialStream.getVideoTracks()[0];
+        if (videoTrack) {
+          cameraTrackRef.current = videoTrack;
+          videoTrack.enabled = initialVideoEnabled;
+        }
+        const audioTrack = initialStream.getAudioTracks()[0];
+        if (audioTrack) {
+          audioTrack.enabled = initialAudioEnabled;
+        }
+        createPeerConnection();
         return;
       }
 
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-            facingMode: "user",
-          },
-          audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true,
-          },
-        });
-
-        if (isCancelled) {
-          stream.getTracks().forEach((t) => t.stop());
-          return;
-        }
-
-        localStreamRef.current = stream;
-        setLocalStream(stream);
-
-        // Store primary camera track for restoring after screen sharing
-        const videoTrack = stream.getVideoTracks()[0];
-        if (videoTrack) {
-          cameraTrackRef.current = videoTrack;
-        }
-
-        // Initialize PeerConnection and add tracks
-        const pc = createPeerConnection();
-        if (pc) {
-          stream.getTracks().forEach((t) => pc.addTrack(t, stream));
-        }
-      } catch (err: unknown) {
-        console.warn("[WebRTC] Local media capture error:", err);
-        const errMsg = err instanceof Error ? err.name : "";
-        if (errMsg === "NotAllowedError" || errMsg === "PermissionDeniedError") {
-          setError("Camera and microphone permissions were denied. Please enable them in browser settings.");
-        } else if (errMsg === "NotFoundError" || errMsg === "DevicesNotFoundError") {
-          setError("No camera or microphone found on your device.");
-        } else {
-          setError("Could not access camera or microphone. Please check permissions.");
+      // 2. Default: Camera is OFF. Mic is only acquired if initialAudioEnabled is explicitly true.
+      if (initialAudioEnabled) {
+        try {
+          if (navigator.mediaDevices?.getUserMedia) {
+            const stream = await navigator.mediaDevices.getUserMedia({
+              audio: {
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true,
+              },
+            });
+            if (isCancelled) {
+              stream.getTracks().forEach((t) => t.stop());
+              return;
+            }
+            localStreamRef.current = stream;
+            setLocalStream(stream);
+          }
+        } catch (err) {
+          console.warn("[WebRTC] Audio capture skipped or blocked:", err);
+          setIsAudioMuted(true);
         }
       }
+
+      // Initialize peer connection immediately so signaling/presence can connect
+      createPeerConnection();
     }
 
     initLocalMedia();
@@ -371,7 +390,7 @@ export function useWebRTC({
         pcRef.current = null;
       }
     };
-  }, [createPeerConnection]);
+  }, [createPeerConnection, initialStream, initialAudioEnabled, initialVideoEnabled]);
 
   // Set up Supabase Realtime Signaling Channel
   useEffect(() => {
@@ -445,29 +464,143 @@ export function useWebRTC({
     return () => clearInterval(interval);
   }, []);
 
-  // Controls: Audio Mute / Unmute
-  const toggleAudio = useCallback(() => {
-    if (!localStreamRef.current) return;
-    const audioTrack = localStreamRef.current.getAudioTracks()[0];
-    if (audioTrack) {
-      audioTrack.enabled = !audioTrack.enabled;
-      const nextMuted = !audioTrack.enabled;
-      setIsAudioMuted(nextMuted);
-      broadcastMediaState(nextMuted, isVideoOff, isScreenSharing);
-    }
-  }, [isVideoOff, isScreenSharing, broadcastMediaState]);
+  // Controls: Audio Mute / Unmute (Requests permission if not granted yet)
+  const toggleAudio = useCallback(async () => {
+    const pc = pcRef.current;
+    if (isAudioMuted) {
+      let audioTrack = localStreamRef.current?.getAudioTracks()[0];
 
-  // Controls: Video On / Off
-  const toggleVideo = useCallback(() => {
-    if (!localStreamRef.current) return;
-    const videoTrack = localStreamRef.current.getVideoTracks()[0];
-    if (videoTrack) {
-      videoTrack.enabled = !videoTrack.enabled;
-      const nextVideoOff = !videoTrack.enabled;
-      setIsVideoOff(nextVideoOff);
-      broadcastMediaState(isAudioMuted, nextVideoOff, isScreenSharing);
+      if (!audioTrack || audioTrack.readyState === "ended") {
+        try {
+          if (!navigator.mediaDevices?.getUserMedia) {
+            setError("Your browser does not support microphone access.");
+            return;
+          }
+          const stream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true,
+            },
+          });
+          audioTrack = stream.getAudioTracks()[0];
+          if (!audioTrack) return;
+
+          if (!localStreamRef.current) {
+            localStreamRef.current = new MediaStream([audioTrack]);
+          } else {
+            localStreamRef.current.addTrack(audioTrack);
+          }
+          setLocalStream(new MediaStream(localStreamRef.current.getTracks()));
+        } catch (err: unknown) {
+          console.warn("[WebRTC] Microphone permission request error:", err);
+          const errMsg = err instanceof Error ? err.name : "";
+          if (errMsg === "NotAllowedError" || errMsg === "PermissionDeniedError") {
+            setError("Microphone permission denied. Please allow microphone access in your browser settings.");
+          } else {
+            setError("Could not access microphone. Please check permissions.");
+          }
+          return;
+        }
+      } else {
+        audioTrack.enabled = true;
+      }
+
+      if (pc && audioTrack) {
+        const audioSender = pc.getSenders().find((s) => s.track?.kind === "audio");
+        if (audioSender) {
+          await audioSender.replaceTrack(audioTrack);
+        } else {
+          try {
+            pc.addTrack(audioTrack, localStreamRef.current!);
+          } catch (e) {
+            console.warn("[WebRTC] Add audio track error:", e);
+          }
+        }
+      }
+
+      setIsAudioMuted(false);
+      setError(null);
+      broadcastMediaState(false, isVideoOff, isScreenSharing);
+    } else {
+      const audioTrack = localStreamRef.current?.getAudioTracks()[0];
+      if (audioTrack) {
+        audioTrack.enabled = false;
+      }
+      setIsAudioMuted(true);
+      broadcastMediaState(true, isVideoOff, isScreenSharing);
     }
-  }, [isAudioMuted, isScreenSharing, broadcastMediaState]);
+  }, [isAudioMuted, isVideoOff, isScreenSharing, broadcastMediaState]);
+
+  // Controls: Video On / Off (Default camera is OFF; requests permission when user clicks ON)
+  const toggleVideo = useCallback(async () => {
+    const pc = pcRef.current;
+
+    if (isVideoOff) {
+      let videoTrack = cameraTrackRef.current;
+
+      if (!videoTrack || videoTrack.readyState === "ended") {
+        try {
+          if (!navigator.mediaDevices?.getUserMedia) {
+            setError("Your browser does not support camera access.");
+            return;
+          }
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
+              facingMode: "user",
+            },
+          });
+          videoTrack = stream.getVideoTracks()[0];
+          if (!videoTrack) return;
+
+          cameraTrackRef.current = videoTrack;
+
+          if (!localStreamRef.current) {
+            localStreamRef.current = new MediaStream([videoTrack]);
+          } else {
+            localStreamRef.current.addTrack(videoTrack);
+          }
+          setLocalStream(new MediaStream(localStreamRef.current.getTracks()));
+        } catch (err: unknown) {
+          console.warn("[WebRTC] Camera permission request error:", err);
+          const errMsg = err instanceof Error ? err.name : "";
+          if (errMsg === "NotAllowedError" || errMsg === "PermissionDeniedError") {
+            setError("Camera permission denied. Please allow camera access in your browser settings to turn on video.");
+          } else {
+            setError("Could not access camera. Please check permissions.");
+          }
+          return;
+        }
+      } else {
+        videoTrack.enabled = true;
+      }
+
+      if (pc && videoTrack) {
+        const videoSender = pc.getSenders().find((s) => s.track?.kind === "video");
+        if (videoSender) {
+          await videoSender.replaceTrack(videoTrack);
+        } else {
+          try {
+            pc.addTrack(videoTrack, localStreamRef.current!);
+          } catch (e) {
+            console.warn("[WebRTC] Add video track error:", e);
+          }
+        }
+      }
+
+      setIsVideoOff(false);
+      setError(null);
+      broadcastMediaState(isAudioMuted, false, isScreenSharing);
+    } else {
+      if (cameraTrackRef.current) {
+        cameraTrackRef.current.enabled = false;
+      }
+      setIsVideoOff(true);
+      broadcastMediaState(isAudioMuted, true, isScreenSharing);
+    }
+  }, [isVideoOff, isAudioMuted, isScreenSharing, broadcastMediaState]);
 
   // Controls: Screen Sharing (Start / Stop) with replaceTrack
   const toggleScreenShare = useCallback(async () => {

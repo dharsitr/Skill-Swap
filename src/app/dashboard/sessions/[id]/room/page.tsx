@@ -7,6 +7,7 @@ import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase/client";
 import { SessionWithRelations } from "@/lib/supabase/services";
 import { VideoRoom } from "@/components/video/VideoRoom";
+import { SessionLobby } from "@/components/video/SessionLobby";
 import { Button } from "@/components/ui/button";
 import {
   ShieldAlert,
@@ -30,6 +31,18 @@ export default function SessionVideoRoomPage({ params }: RoomPageProps) {
   const [session, setSession] = useState<SessionWithRelations | null>(null);
   const [isLoadingSession, setIsLoadingSession] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Google Meet Pre-join Lobby State
+  const [hasJoined, setHasJoined] = useState(false);
+  const [lobbyMedia, setLobbyMedia] = useState<{
+    audioEnabled: boolean;
+    videoEnabled: boolean;
+    stream: MediaStream | null;
+  }>({
+    audioEnabled: false,
+    videoEnabled: false,
+    stream: null,
+  });
 
   useEffect(() => {
     if (!sessionId || !user) return;
@@ -136,14 +149,55 @@ export default function SessionVideoRoomPage({ params }: RoomPageProps) {
     );
   }
 
-  // Render Authorized Fullscreen Video Room
-  return (
-    <div className="animate-in fade-in duration-300">
-      <VideoRoom
+  const currentUserName = profile?.display_name || user?.email?.split("@")[0] || "Participant";
+  const currentUserAvatar = profile?.avatar_url;
+
+  // Handle Google Meet "Join Now" Click (Enters fullscreen and connects room)
+  const handleJoin = (options: {
+    audioEnabled: boolean;
+    videoEnabled: boolean;
+    stream: MediaStream | null;
+  }) => {
+    // Request browser full screen directly on user click
+    try {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(() => {});
+      }
+    } catch {
+      // Ignored if restricted
+    }
+
+    setLobbyMedia(options);
+    setHasJoined(true);
+  };
+
+  // Google Meet Flow:
+  // Step 1: Pre-Join Green Room / Lobby (Default camera OFF, prompts for permission on toggle)
+  if (!hasJoined) {
+    return (
+      <SessionLobby
         session={session}
         currentUserId={user!.id}
-        currentUserName={profile?.display_name || user?.email?.split("@")[0] || "Participant"}
+        currentUserName={currentUserName}
+        currentUserAvatar={currentUserAvatar || undefined}
+        onJoin={handleJoin}
       />
-    </div>
+    );
+  }
+
+  // Step 2: Active Call in Full Screen (like Google Meet)
+  return (
+    <VideoRoom
+      session={session}
+      currentUserId={user!.id}
+      currentUserName={currentUserName}
+      initialStream={lobbyMedia.stream}
+      initialAudioEnabled={lobbyMedia.audioEnabled}
+      initialVideoEnabled={lobbyMedia.videoEnabled}
+      onLeave={() => {
+        setHasJoined(false);
+        router.push("/dashboard/sessions");
+      }}
+    />
   );
 }

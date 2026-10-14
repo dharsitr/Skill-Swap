@@ -32,12 +32,20 @@ interface VideoRoomProps {
   session: SessionWithRelations;
   currentUserId: string;
   currentUserName: string;
+  initialStream?: MediaStream | null;
+  initialAudioEnabled?: boolean;
+  initialVideoEnabled?: boolean;
+  onLeave?: () => void;
 }
 
 export const VideoRoom: React.FC<VideoRoomProps> = ({
   session,
   currentUserId,
   currentUserName,
+  initialStream = null,
+  initialAudioEnabled = false,
+  initialVideoEnabled = false,
+  onLeave,
 }) => {
   const router = useRouter();
 
@@ -69,6 +77,9 @@ export const VideoRoom: React.FC<VideoRoomProps> = ({
     currentUserName,
     isInitiator: isTeacher,
     expectedPeerId: isTeacher ? session.learner_id : session.teacher_id,
+    initialStream,
+    initialAudioEnabled,
+    initialVideoEnabled,
   });
 
   // Video element refs
@@ -119,10 +130,28 @@ export const VideoRoom: React.FC<VideoRoomProps> = ({
     return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   };
 
+  // Fullscreen sync & attempt browser fullscreen on join (like Google Meet)
+  useEffect(() => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {
+        // Handled gracefully if browser requires immediate click gesture
+      });
+    }
+
+    const onFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+
+    document.addEventListener("fullscreenchange", onFullscreenChange);
+    return () => {
+      document.removeEventListener("fullscreenchange", onFullscreenChange);
+    };
+  }, []);
+
   // Fullscreen toggle
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
-      containerRef.current?.requestFullscreen().catch(() => {});
+      document.documentElement.requestFullscreen().catch(() => {});
       setIsFullscreen(true);
     } else {
       document.exitFullscreen().catch(() => {});
@@ -186,14 +215,21 @@ export const VideoRoom: React.FC<VideoRoomProps> = ({
 
   // Handle End Call
   const handleEndCall = () => {
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+    }
     endCall();
-    router.push("/dashboard/sessions");
+    if (onLeave) {
+      onLeave();
+    } else {
+      router.push("/dashboard/sessions");
+    }
   };
 
   return (
     <div
       ref={containerRef}
-      className="relative w-full h-[calc(100vh-5rem)] bg-zinc-950 text-white rounded-3xl overflow-hidden flex flex-col border border-zinc-800 shadow-2xl select-none"
+      className="fixed inset-0 z-50 bg-zinc-950 text-white w-screen h-screen overflow-hidden flex flex-col select-none"
     >
       {/* Top Bar: Session Info, Network Stats & Timer */}
       <div className="absolute top-0 inset-x-0 z-20 px-6 py-4 bg-gradient-to-b from-black/80 via-black/40 to-transparent flex items-center justify-between">
