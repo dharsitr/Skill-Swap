@@ -479,7 +479,8 @@ export const notificationService = {
     }
 
     const sb = resolveClient(client);
-    const channelName = `notifications:${userId}`;
+    const uniqueSuffix = Math.random().toString(36).substring(2, 9);
+    const channelName = `notifications:${userId}:${uniqueSuffix}`;
 
     const channel: RealtimeChannel = sb
       .channel(channelName)

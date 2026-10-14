@@ -443,7 +443,8 @@ export const chatService = {
     }
 
     const sb = resolveClient(client);
-    const channelName = `conversation:${conversationId}`;
+    const uniqueSuffix = Math.random().toString(36).substring(2, 9);
+    const channelName = `conversation:${conversationId}:${uniqueSuffix}`;
 
     const channel: RealtimeChannel = sb
       .channel(channelName)
