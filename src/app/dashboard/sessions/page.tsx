@@ -33,6 +33,7 @@ import {
   Filter,
   Video,
   Star,
+  Zap,
 } from "lucide-react";
 
 type StatusTab = "upcoming" | "pending" | "completed" | "all";
@@ -361,6 +362,7 @@ export default function SessionsPage() {
                         </h4>
 
                         {/* Role Badge */}
+                        {/* Role Badge */}
                         <Badge
                           variant={isTeacher ? "indigo" : "secondary"}
                           size="sm"
@@ -368,6 +370,14 @@ export default function SessionsPage() {
                         >
                           {isTeacher ? "Teaching" : "Learning"}
                         </Badge>
+
+                        {/* Immediate Session Badge */}
+                        {Math.abs(new Date(sess.scheduled_at).getTime() - new Date(sess.created_at).getTime()) <= 10 * 60 * 1000 && (
+                          <Badge variant="outline" size="sm" className="bg-amber-100/90 text-amber-900 border-amber-300 font-bold flex items-center gap-1 shadow-xs">
+                            <Zap className="h-3 w-3 fill-amber-500 text-amber-600" />
+                            Immediate Swap
+                          </Badge>
+                        )}
 
                         {/* Status Badge */}
                         {sess.status === "confirmed" && (
@@ -451,17 +461,34 @@ export default function SessionsPage() {
                       </>
                     )}
 
-                    {/* Pending & Current User is Learner: Quick Cancel */}
+                    {/* Pending & Current User is Learner: Quick Cancel & Enter Room */}
                     {sess.status === "pending" && isLearner && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={isQuickBusy}
-                        onClick={(e) => handleQuickCancel(e, sess.id)}
-                        className="text-slate-600 hover:bg-slate-100 border-slate-200 text-xs font-semibold"
-                      >
-                        {isQuickBusy ? <Loader2 className="w-3 h-3 animate-spin" /> : "Cancel Request"}
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        {Math.abs(new Date(sess.scheduled_at).getTime() - new Date(sess.created_at).getTime()) <= 10 * 60 * 1000 && (
+                          <Link
+                            href={`/dashboard/sessions/${sess.id}/room`}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Button
+                              variant="primary"
+                              size="sm"
+                              className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-xs flex items-center gap-1"
+                            >
+                              <Video className="w-3.5 h-3.5" />
+                              Enter Live Room
+                            </Button>
+                          </Link>
+                        )}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={isQuickBusy}
+                          onClick={(e) => handleQuickCancel(e, sess.id)}
+                          className="text-slate-600 hover:bg-slate-100 border-slate-200 text-xs font-semibold"
+                        >
+                          {isQuickBusy ? <Loader2 className="w-3 h-3 animate-spin" /> : "Cancel Request"}
+                        </Button>
+                      </div>
                     )}
 
                     {/* Confirmed: Quick Join Call & Complete */}

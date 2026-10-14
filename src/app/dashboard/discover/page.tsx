@@ -47,6 +47,7 @@ import {
   ArrowUpDown,
   Star,
   MessageSquare,
+  Zap,
 } from "lucide-react";
 
 const COMPATIBILITY_OPTIONS = [
@@ -117,9 +118,11 @@ export default function DiscoverPage() {
   // Booking Modal State
   const [bookingModalOpen, setBookingModalOpen] = useState(false);
   const [bookingMentor, setBookingMentor] = useState<DiscoverableUser | null>(null);
+  const [initialImmediate, setInitialImmediate] = useState(false);
 
-  const handleOpenBooking = (peer: DiscoverableUser) => {
+  const handleOpenBooking = (peer: DiscoverableUser, isImmediate = false) => {
     setBookingMentor(peer);
+    setInitialImmediate(isImmediate);
     setBookingModalOpen(true);
   };
 
@@ -655,8 +658,19 @@ export default function DiscoverPage() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => handleOpenBooking(peer)}
-                      className="text-xs font-semibold border-indigo-200 text-indigo-700 hover:bg-indigo-50 flex items-center gap-1"
+                      onClick={() => handleOpenBooking(peer, true)}
+                      title="Start immediate 1-on-1 swap session now"
+                      className="text-xs font-bold border-amber-300 text-amber-800 bg-amber-50 hover:bg-amber-100 flex items-center gap-1 cursor-pointer"
+                    >
+                      <Zap className="h-3 w-3 fill-amber-500 text-amber-600" />
+                      Instant
+                    </Button>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleOpenBooking(peer, false)}
+                      className="text-xs font-semibold border-indigo-200 text-indigo-700 hover:bg-indigo-50 flex items-center gap-1 cursor-pointer"
                     >
                       <Calendar className="h-3 w-3" />
                       Book
@@ -847,6 +861,7 @@ export default function DiscoverPage() {
           setBookingMentor(null);
         }}
         preselectedMentor={bookingMentor}
+        initialImmediate={initialImmediate}
         onBookingSuccess={() => {
           showToast("Session booking requested!");
           router.push("/dashboard/sessions");

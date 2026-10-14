@@ -13,6 +13,7 @@ import {
   isValidUuid,
   checkRateLimit,
 } from "@/lib/security/sanitize";
+import { encryptMessage, decryptMessage } from "@/lib/security/e2ee";
 
 export interface ChatMessage extends MessageRow {
   sender?: ProfileRow | null;
@@ -42,6 +43,26 @@ export const chatService = {
 
     try {
       const sb = resolveClient(client);
+
+      // Auto-sync accepted peer connections so connected mentors appear immediately
+      try {
+        const { data: acceptedConnections } = await sb
+          .from("connection_requests")
+          .select("sender_id, receiver_id")
+          .eq("status", "accepted")
+          .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`);
+
+        if (acceptedConnections && acceptedConnections.length > 0) {
+          const peerIds = acceptedConnections.map((c) =>
+            c.sender_id === userId ? c.receiver_id : c.sender_id
+          );
+          for (const peerId of peerIds) {
+            await chatService.getOrCreateConversation(userId, peerId, sb);
+          }
+        }
+      } catch (syncErr) {
+        console.warn("[chatService] Auto-sync connections notice:", syncErr);
+      }
 
       // 1. Get all conversation IDs the user participates in
       const { data: myParticipations, error: partErr } = await sb
@@ -106,6 +127,15 @@ export const chatService = {
         const convMessages = allMessages.filter((m) => m.conversation_id === conv.id);
         const lastMessage = convMessages.length > 0 ? convMessages[0] : null;
 
+        let decryptedLastMessage: ChatMessage | null = null;
+        if (lastMessage) {
+          const decryptedContent = await decryptMessage(lastMessage.content, conv.id);
+          decryptedLastMessage = {
+            ...lastMessage,
+            content: decryptedContent,
+          };
+        }
+
         // Unread count: messages sent by peer where read_at is null
         const unreadCount = convMessages.filter(
           (m) => m.sender_id !== userId && !m.read_at
@@ -114,9 +144,9 @@ export const chatService = {
         detailsList.push({
           id: conv.id,
           createdAt: conv.created_at,
-          updatedAt: lastMessage?.created_at || conv.updated_at,
+          updatedAt: decryptedLastMessage?.created_at || conv.updated_at,
           peer: peerProfile,
-          lastMessage,
+          lastMessage: decryptedLastMessage,
           unreadCount,
         });
       }
@@ -136,7 +166,7 @@ export const chatService = {
   },
 
   /**
-   * Retrieves messages for a specific conversation in chronological order.
+   * Retrieves messages for a specific conversation in chronological order with E2EE decryption.
    */
   async getConversationMessages(
     conversationId: string,
@@ -159,7 +189,15 @@ export const chatService = {
         return { data: null, error: error.message };
       }
 
-      return { data: (data || []) as ChatMessage[], error: null };
+      const rawMessages = (data || []) as ChatMessage[];
+      const decryptedMessages = await Promise.all(
+        rawMessages.map(async (msg) => ({
+          ...msg,
+          content: await decryptMessage(msg.content, conversationId),
+        }))
+      );
+
+      return { data: decryptedMessages, error: null };
     } catch (err: unknown) {
       return {
         data: null,
@@ -216,12 +254,15 @@ export const chatService = {
     try {
       const sb = resolveClient(client);
 
+      // End-to-End Encrypt before saving to database
+      const encryptedContent = await encryptMessage(sanitized, conversationId);
+
       const { data, error } = await sb
         .from("messages")
         .insert({
           conversation_id: conversationId,
           sender_id: senderId,
-          content: sanitized,
+          content: encryptedContent,
         })
         .select("*, sender:profiles(*)")
         .single();
@@ -229,6 +270,12 @@ export const chatService = {
       if (error) {
         return { data: null, error: error.message };
       }
+
+      // Return decrypted message object for the UI sender
+      const sentMessage: ChatMessage = {
+        ...(data as ChatMessage),
+        content: sanitized,
+      };
 
       // Update conversation updated_at
       await sb
@@ -267,7 +314,7 @@ export const chatService = {
         // Notification delivery is best effort, don't fail message sending
       }
 
-      return { data: data as ChatMessage, error: null };
+      return { data: sentMessage, error: null };
     } catch (err: unknown) {
       return {
         data: null,
@@ -337,10 +384,17 @@ export const chatService = {
         return { data: null, error: newConvErr?.message || "Failed to create conversation." };
       }
 
-      await sb.from("conversation_participants").insert([
-        { conversation_id: newConv.id, user_id: userAId },
-        { conversation_id: newConv.id, user_id: userBId },
-      ]);
+      // Insert creator first so they are an active conversation participant
+      await sb.from("conversation_participants").insert({
+        conversation_id: newConv.id,
+        user_id: userAId,
+      });
+
+      // Insert peer second so RLS EXISTS policy evaluates to true
+      await sb.from("conversation_participants").insert({
+        conversation_id: newConv.id,
+        user_id: userBId,
+      });
 
       return { data: newConv.id, error: null };
     } catch (err: unknown) {
@@ -458,6 +512,7 @@ export const chatService = {
         },
         async (payload) => {
           const newRow = payload.new as MessageRow;
+          const decryptedContent = await decryptMessage(newRow.content, conversationId);
           // Optionally fetch sender profile to enrich the message
           try {
             const { data: sender } = await sb
@@ -468,10 +523,14 @@ export const chatService = {
 
             callbacks.onNewMessage({
               ...newRow,
+              content: decryptedContent,
               sender: sender || null,
             });
           } catch {
-            callbacks.onNewMessage(newRow as ChatMessage);
+            callbacks.onNewMessage({
+              ...(newRow as ChatMessage),
+              content: decryptedContent,
+            });
           }
         }
       )

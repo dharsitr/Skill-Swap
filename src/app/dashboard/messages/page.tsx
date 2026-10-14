@@ -29,6 +29,8 @@ import {
   Clock,
   Sparkles,
   AlertCircle,
+  Lock,
+  ShieldCheck,
 } from "lucide-react";
 
 function formatMessageTime(isoString: string): string {
@@ -443,6 +445,11 @@ function MessagesContent() {
                 </div>
 
                 <div className="flex items-center gap-2">
+                  <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/80 text-[11px] font-semibold" title="Messages are cryptographically protected with client-side AES-GCM 256-bit encryption.">
+                    <Lock className="w-3 h-3 text-emerald-600" />
+                    <span>E2E Encrypted</span>
+                  </div>
+
                   <Link href={`/dashboard/discover`}>
                     <Button variant="ghost" size="sm" className="text-xs font-medium text-slate-600">
                       <User className="h-3.5 w-3.5 mr-1" />
@@ -454,6 +461,11 @@ function MessagesContent() {
 
               {/* Messages Scroll Area */}
               <div className="flex-1 p-4 overflow-y-auto space-y-3 bg-slate-50/30">
+                {/* E2EE Info Callout */}
+                <div className="mx-auto max-w-sm text-center py-2 px-3.5 bg-indigo-50/80 border border-indigo-100 rounded-2xl text-[11px] text-indigo-900 flex items-center justify-center gap-2 shadow-2xs">
+                  <ShieldCheck className="w-4 h-4 text-indigo-600 flex-shrink-0" />
+                  <span>Messages are end-to-end encrypted with AES-256. Only you and your peer can read them.</span>
+                </div>
                 {isLoadingMessages ? (
                   <div className="flex items-center justify-center h-full">
                     <Loader2 className="h-6 w-6 animate-spin text-indigo-600" />

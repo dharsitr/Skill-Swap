@@ -326,14 +326,16 @@ export const sessionService = {
           return { data: null, error: insertErr.message };
         }
 
-        const newSessionId = insertData.id;
+        const isImmediate = new Date(scheduledAt).getTime() - Date.now() < 5 * 60 * 1000;
         notificationService
           .createNotification({
             userId: teacherId,
             type: "session_booking",
-            title: "New Session Booking Request",
-            content: "A peer has requested a swap session with you.",
-            linkUrl: "/dashboard/sessions",
+            title: isImmediate ? "⚡ Immediate Swap Session Request!" : "New Session Booking Request",
+            content: isImmediate
+              ? "A peer requested an IMMEDIATE live swap session with you right now! Tap to enter the live room."
+              : "A peer has requested a swap session with you.",
+            linkUrl: isImmediate ? `/dashboard/sessions/${newSessionId}/room` : "/dashboard/sessions",
             referenceId: newSessionId,
           })
           .catch(() => {});
@@ -356,13 +358,16 @@ export const sessionService = {
       const rpcData = data as unknown as BookRpcResult;
 
       if (rpcData.success && rpcData.session_id) {
+        const isImmediate = new Date(scheduledAt).getTime() - Date.now() < 5 * 60 * 1000;
         notificationService
           .createNotification({
             userId: teacherId,
             type: "session_booking",
-            title: "New Session Booking Request",
-            content: "A peer has requested a swap session with you.",
-            linkUrl: "/dashboard/sessions",
+            title: isImmediate ? "⚡ Immediate Swap Session Request!" : "New Session Booking Request",
+            content: isImmediate
+              ? "A peer requested an IMMEDIATE live swap session with you right now! Tap to enter the live room."
+              : "A peer has requested a swap session with you.",
+            linkUrl: isImmediate ? `/dashboard/sessions/${rpcData.session_id}/room` : "/dashboard/sessions",
             referenceId: rpcData.session_id,
           })
           .catch(() => {});
