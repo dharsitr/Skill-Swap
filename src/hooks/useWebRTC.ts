@@ -113,6 +113,20 @@ export function useWebRTC({
     }
   }, []);
 
+  // Helper to resolve an RTCRtpSender for audio or video, even if sender.track is null
+  const getTransceiverSender = useCallback(
+    (pc: RTCPeerConnection, kind: "audio" | "video"): RTCRtpSender | undefined => {
+      const transceiver = pc.getTransceivers().find(
+        (t) => t.receiver.track.kind === kind || t.sender.track?.kind === kind
+      );
+      if (transceiver) {
+        return transceiver.sender;
+      }
+      return pc.getSenders().find((s) => s.track?.kind === kind);
+    },
+    []
+  );
+
   // Initialize or recreate RTCPeerConnection
   const createPeerConnection = useCallback(() => {
     if (typeof window === "undefined") return null;
@@ -131,11 +145,37 @@ export function useWebRTC({
     setRemoteStream(rStream);
 
     pc.ontrack = (event) => {
-      event.streams[0]?.getTracks().forEach((track) => {
-        if (!rStream.getTracks().some((t) => t.id === track.id)) {
-          rStream.addTrack(track);
+      const incomingTrack = event.track;
+      if (incomingTrack) {
+        // Replace existing track of same kind to ensure clean playback and prevent freeze
+        const existingTracks = rStream.getTracks().filter((t) => t.kind === incomingTrack.kind);
+        existingTracks.forEach((t) => {
+          if (t.id !== incomingTrack.id) {
+            rStream.removeTrack(t);
+          }
+        });
+
+        if (!rStream.getTracks().some((t) => t.id === incomingTrack.id)) {
+          rStream.addTrack(incomingTrack);
         }
-      });
+
+        const notifyStreamUpdate = () => {
+          setRemoteStream(new MediaStream(rStream.getTracks()));
+        };
+
+        incomingTrack.onunmute = notifyStreamUpdate;
+        incomingTrack.onmute = notifyStreamUpdate;
+        incomingTrack.onended = notifyStreamUpdate;
+      }
+
+      if (event.streams && event.streams[0]) {
+        event.streams[0].getTracks().forEach((track) => {
+          if (!rStream.getTracks().some((t) => t.id === track.id)) {
+            rStream.addTrack(track);
+          }
+        });
+      }
+
       setRemoteStream(new MediaStream(rStream.getTracks()));
     };
 
@@ -163,28 +203,65 @@ export function useWebRTC({
       setIceConnectionState(pc.iceConnectionState);
     };
 
-    // Ensure both audio and video transceivers exist so SDP negotiates both channels
-    try {
-      pc.addTransceiver("audio", { direction: "sendrecv" });
-      pc.addTransceiver("video", { direction: "sendrecv" });
-    } catch (e) {
-      console.warn("[WebRTC] addTransceiver note:", e);
+    // Negotiation needed handler (supports renegotiation if tracks change)
+    pc.onnegotiationneeded = async () => {
+      try {
+        if (isCreatingOfferRef.current || pc.signalingState !== "stable") return;
+        isCreatingOfferRef.current = true;
+        const offer = await pc.createOffer({
+          offerToReceiveAudio: true,
+          offerToReceiveVideo: true,
+        });
+        if (pc.signalingState !== "stable") return;
+        await pc.setLocalDescription(offer);
+        await sendSignal({
+          type: "offer",
+          sdp: offer,
+        });
+      } catch (err) {
+        console.warn("[WebRTC] onnegotiationneeded error:", err);
+      } finally {
+        isCreatingOfferRef.current = false;
+      }
+    };
+
+    // Ensure audio & video transceivers are configured with direction sendrecv
+    let audioTransceiver = pc.getTransceivers().find((t) => t.receiver.track.kind === "audio");
+    if (!audioTransceiver) {
+      try {
+        const audioTrack = localStreamRef.current?.getAudioTracks()[0] || null;
+        if (audioTrack) {
+          audioTransceiver = pc.addTransceiver(audioTrack, {
+            direction: "sendrecv",
+            streams: localStreamRef.current ? [localStreamRef.current] : [],
+          });
+        } else {
+          audioTransceiver = pc.addTransceiver("audio", { direction: "sendrecv" });
+        }
+      } catch (e) {
+        console.warn("[WebRTC] addTransceiver audio note:", e);
+      }
+    } else if (localStreamRef.current?.getAudioTracks()[0]) {
+      audioTransceiver.sender.replaceTrack(localStreamRef.current.getAudioTracks()[0]).catch(() => {});
     }
 
-    // Add local tracks if stream already acquired
-    if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach((track) => {
-        const sender = pc.getSenders().find((s) => s.track?.kind === track.kind);
-        if (sender) {
-          sender.replaceTrack(track).catch(() => {});
+    let videoTransceiver = pc.getTransceivers().find((t) => t.receiver.track.kind === "video");
+    if (!videoTransceiver) {
+      try {
+        const videoTrack = localStreamRef.current?.getVideoTracks()[0] || null;
+        if (videoTrack) {
+          videoTransceiver = pc.addTransceiver(videoTrack, {
+            direction: "sendrecv",
+            streams: localStreamRef.current ? [localStreamRef.current] : [],
+          });
         } else {
-          try {
-            pc.addTrack(track, localStreamRef.current!);
-          } catch (e) {
-            console.warn("[WebRTC] addTrack note:", e);
-          }
+          videoTransceiver = pc.addTransceiver("video", { direction: "sendrecv" });
         }
-      });
+      } catch (e) {
+        console.warn("[WebRTC] addTransceiver video note:", e);
+      }
+    } else if (localStreamRef.current?.getVideoTracks()[0]) {
+      videoTransceiver.sender.replaceTrack(localStreamRef.current.getVideoTracks()[0]).catch(() => {});
     }
 
     return pc;
@@ -201,6 +278,7 @@ export function useWebRTC({
         offerToReceiveAudio: true,
         offerToReceiveVideo: true,
       });
+      if (pc.signalingState !== "stable") return;
       await pc.setLocalDescription(offer);
       await sendSignal({
         type: "offer",
@@ -251,16 +329,17 @@ export function useWebRTC({
           case "offer":
             if (payload.sdp && payload.sdp.type === "offer" && typeof payload.sdp.sdp === "string") {
               setIsPeerPresent(true);
-              // Handle offer collision with polite rollback if needed
-              if (pc.signalingState !== "stable") {
-                await Promise.all([
-                  pc.setLocalDescription({ type: "rollback" }),
-                  pc.setRemoteDescription(new RTCSessionDescription(payload.sdp)),
-                ]);
-              } else {
-                await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
+              const isCollision = isCreatingOfferRef.current || pc.signalingState !== "stable";
+              if (isCollision) {
+                if (isInitiator) {
+                  // Impolite peer (initiator) ignores colliding offer to prevent glare
+                  return;
+                }
+                // Polite peer rolls back local offer
+                await pc.setLocalDescription({ type: "rollback" });
               }
 
+              await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
               await processQueuedCandidates(pc);
 
               const answer = await pc.createAnswer();
@@ -286,7 +365,12 @@ export function useWebRTC({
           case "ice-candidate":
             if (payload.candidate && (typeof payload.candidate.candidate === "string" || payload.candidate.candidate === "")) {
               if (pc.remoteDescription && pc.remoteDescription.type) {
-                await pc.addIceCandidate(new RTCIceCandidate(payload.candidate));
+                try {
+                  await pc.addIceCandidate(new RTCIceCandidate(payload.candidate));
+                } catch (e) {
+                  console.warn("[WebRTC] Error adding ICE candidate, queueing:", e);
+                  iceCandidateQueueRef.current.push(payload.candidate);
+                }
               } else {
                 iceCandidateQueueRef.current.push(payload.candidate);
               }
@@ -442,6 +526,7 @@ export function useWebRTC({
 
         // Announce join to peer
         sendSignal({ type: "peer-joined" });
+        broadcastMediaState(isAudioMuted, isVideoOff, isScreenSharing);
       }
     });
 
@@ -450,7 +535,17 @@ export function useWebRTC({
       supabase.client.removeChannel(channel);
       channelRef.current = null;
     };
-  }, [sessionId, currentUserId, currentUserName, handleSignalMessage, sendSignal]);
+  }, [
+    sessionId,
+    currentUserId,
+    currentUserName,
+    handleSignalMessage,
+    sendSignal,
+    broadcastMediaState,
+    isAudioMuted,
+    isVideoOff,
+    isScreenSharing,
+  ]);
 
   // Network Statistics Polling Interval (Every 2s)
   useEffect(() => {
@@ -507,12 +602,12 @@ export function useWebRTC({
       }
 
       if (pc && audioTrack) {
-        const audioSender = pc.getSenders().find((s) => s.track?.kind === "audio");
+        const audioSender = getTransceiverSender(pc, "audio");
         if (audioSender) {
           await audioSender.replaceTrack(audioTrack);
         } else {
           try {
-            pc.addTrack(audioTrack, localStreamRef.current!);
+            pc.addTrack(audioTrack, localStreamRef.current || new MediaStream([audioTrack]));
           } catch (e) {
             console.warn("[WebRTC] Add audio track error:", e);
           }
@@ -530,7 +625,7 @@ export function useWebRTC({
       setIsAudioMuted(true);
       broadcastMediaState(true, isVideoOff, isScreenSharing);
     }
-  }, [isAudioMuted, isVideoOff, isScreenSharing, broadcastMediaState]);
+  }, [isAudioMuted, isVideoOff, isScreenSharing, broadcastMediaState, getTransceiverSender]);
 
   // Controls: Video On / Off (Default camera is OFF; requests permission when user clicks ON)
   const toggleVideo = useCallback(async () => {
@@ -578,12 +673,12 @@ export function useWebRTC({
       }
 
       if (pc && videoTrack) {
-        const videoSender = pc.getSenders().find((s) => s.track?.kind === "video");
+        const videoSender = getTransceiverSender(pc, "video");
         if (videoSender) {
           await videoSender.replaceTrack(videoTrack);
         } else {
           try {
-            pc.addTrack(videoTrack, localStreamRef.current!);
+            pc.addTrack(videoTrack, localStreamRef.current || new MediaStream([videoTrack]));
           } catch (e) {
             console.warn("[WebRTC] Add video track error:", e);
           }
@@ -600,7 +695,7 @@ export function useWebRTC({
       setIsVideoOff(true);
       broadcastMediaState(isAudioMuted, true, isScreenSharing);
     }
-  }, [isVideoOff, isAudioMuted, isScreenSharing, broadcastMediaState]);
+  }, [isVideoOff, isAudioMuted, isScreenSharing, broadcastMediaState, getTransceiverSender]);
 
   // Controls: Screen Sharing (Start / Stop) with replaceTrack
   const toggleScreenShare = useCallback(async () => {
@@ -615,7 +710,7 @@ export function useWebRTC({
       }
 
       if (cameraTrackRef.current) {
-        const videoSender = pc.getSenders().find((s) => s.track?.kind === "video");
+        const videoSender = getTransceiverSender(pc, "video");
         if (videoSender) {
           await videoSender.replaceTrack(cameraTrackRef.current);
         }
@@ -642,7 +737,7 @@ export function useWebRTC({
         screenTrackRef.current = screenTrack;
 
         // Replace outgoing video track on peer connection
-        const videoSender = pc.getSenders().find((s) => s.track?.kind === "video");
+        const videoSender = getTransceiverSender(pc, "video");
         if (videoSender) {
           await videoSender.replaceTrack(screenTrack);
         }
@@ -653,7 +748,7 @@ export function useWebRTC({
         // When user stops sharing using browser native UI
         screenTrack.onended = async () => {
           if (cameraTrackRef.current && pcRef.current) {
-            const currentVideoSender = pcRef.current.getSenders().find((s) => s.track?.kind === "video");
+            const currentVideoSender = getTransceiverSender(pcRef.current, "video");
             if (currentVideoSender) {
               await currentVideoSender.replaceTrack(cameraTrackRef.current);
             }
@@ -667,7 +762,7 @@ export function useWebRTC({
         console.warn("[WebRTC] Screen sharing cancelled or denied:", err);
       }
     }
-  }, [isScreenSharing, isAudioMuted, isVideoOff, broadcastMediaState]);
+  }, [isScreenSharing, isAudioMuted, isVideoOff, broadcastMediaState, getTransceiverSender]);
 
   // End Call & Cleanup
   const endCall = useCallback(() => {

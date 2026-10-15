@@ -99,19 +99,37 @@ export const VideoRoom: React.FC<VideoRoomProps> = ({
   const [isSendingMessage, setIsSendingMessage] = useState(false);
   const chatBottomRef = useRef<HTMLDivElement>(null);
 
+  // Determine whether remote peer has an active and live video track
+  const hasActiveRemoteVideo = Boolean(
+    remoteStream &&
+    remoteStream.getVideoTracks().length > 0 &&
+    remoteStream.getVideoTracks().some((t) => t.enabled && t.readyState === "live") &&
+    !remoteMediaState?.isVideoOff
+  );
+
   // Attach local stream
   useEffect(() => {
-    if (localVideoRef.current && localStream) {
-      localVideoRef.current.srcObject = localStream;
+    const videoEl = localVideoRef.current;
+    if (videoEl && localStream) {
+      if (videoEl.srcObject !== localStream) {
+        videoEl.srcObject = localStream;
+      }
+      videoEl.play().catch(() => {});
     }
-  }, [localStream]);
+  }, [localStream, isVideoOff]);
 
   // Attach remote stream
   useEffect(() => {
-    if (remoteVideoRef.current && remoteStream) {
-      remoteVideoRef.current.srcObject = remoteStream;
+    const videoEl = remoteVideoRef.current;
+    if (videoEl && remoteStream) {
+      if (videoEl.srcObject !== remoteStream) {
+        videoEl.srcObject = remoteStream;
+      }
+      videoEl.play().catch((err) => {
+        console.warn("[VideoRoom] Remote video play note:", err);
+      });
     }
-  }, [remoteStream]);
+  }, [remoteStream, remoteMediaState?.isVideoOff]);
 
   // Call duration timer
   useEffect(() => {
@@ -311,14 +329,17 @@ export const VideoRoom: React.FC<VideoRoomProps> = ({
         <div className="relative flex-1 bg-zinc-950 flex items-center justify-center p-4">
           {/* Remote Video (Main) */}
           <div className="relative w-full h-full rounded-2xl overflow-hidden bg-zinc-900 flex items-center justify-center border border-zinc-800/80">
-            {remoteStream && !remoteMediaState?.isVideoOff ? (
-              <video
-                ref={remoteVideoRef}
-                autoPlay
-                playsInline
-                className="w-full h-full object-contain bg-black"
-              />
-            ) : (
+            {/* Always keep video element in DOM so ref and srcObject are never detached */}
+            <video
+              ref={remoteVideoRef}
+              autoPlay
+              playsInline
+              className={`w-full h-full object-contain bg-black ${
+                hasActiveRemoteVideo ? "block" : "hidden"
+              }`}
+            />
+
+            {!hasActiveRemoteVideo && (
               <div className="flex flex-col items-center justify-center p-6 text-center space-y-3">
                 {partner?.avatar_url ? (
                   <img
@@ -379,15 +400,16 @@ export const VideoRoom: React.FC<VideoRoomProps> = ({
 
           {/* Local Video Picture-in-Picture (PiP) */}
           <div className="absolute bottom-6 right-6 z-20 w-44 sm:w-56 aspect-video rounded-2xl overflow-hidden bg-zinc-900 border-2 border-zinc-700 shadow-2xl">
-            {localStream && !isVideoOff ? (
-              <video
-                ref={localVideoRef}
-                autoPlay
-                playsInline
-                muted
-                className={`w-full h-full object-cover ${!isScreenSharing ? "-scale-x-100" : ""}`}
-              />
-            ) : (
+            <video
+              ref={localVideoRef}
+              autoPlay
+              playsInline
+              muted
+              className={`w-full h-full object-cover ${!isScreenSharing ? "-scale-x-100" : ""} ${
+                localStream && !isVideoOff ? "block" : "hidden"
+              }`}
+            />
+            {(!localStream || isVideoOff) && (
               <div className="w-full h-full flex flex-col items-center justify-center bg-zinc-900 text-zinc-400">
                 <VideoOff className="w-6 h-6 mb-1" />
                 <span className="text-[10px]">Camera off</span>

@@ -70,8 +70,11 @@ export async function middleware(request: NextRequest) {
 
   // Redirect authenticated users away from /login and /signup
   if ((path === "/login" || path === "/signup") && user) {
-    const rawRedirect = request.nextUrl.searchParams.get("redirect") || "/dashboard";
-    const safeTarget = getSafeRedirectPath(rawRedirect);
+    const rawRedirect = request.nextUrl.searchParams.get("redirect");
+    const safeTarget =
+      rawRedirect && rawRedirect !== "/" && rawRedirect !== "/login" && rawRedirect !== "/signup"
+        ? getSafeRedirectPath(rawRedirect)
+        : "/dashboard";
     return NextResponse.redirect(new URL(safeTarget, request.url));
   }
 

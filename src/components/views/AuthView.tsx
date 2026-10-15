@@ -23,7 +23,17 @@ import {
 export function AuthView() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectTarget = searchParams.get("redirect") || "/";
+  const rawRedirect = searchParams.get("redirect");
+  const redirectTarget =
+    rawRedirect &&
+    rawRedirect.startsWith("/") &&
+    !rawRedirect.startsWith("//") &&
+    !rawRedirect.includes("\\") &&
+    rawRedirect !== "/" &&
+    rawRedirect !== "/login" &&
+    rawRedirect !== "/signup"
+      ? rawRedirect
+      : "/dashboard";
 
   const { authMode, setAuthMode, setActiveScreen, showToast, updateOnboardingData } = useApp();
   const { user, isLoading: authLoading, signIn, signUp } = useAuth();
@@ -35,12 +45,13 @@ export function AuthView() {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Redirect authenticated users away from login/signup
+  // Redirect authenticated users away from login/signup to dashboard or safe target
   useEffect(() => {
     if (!authLoading && user) {
+      setActiveScreen("dashboard");
       router.replace(redirectTarget);
     }
-  }, [user, authLoading, router, redirectTarget]);
+  }, [user, authLoading, router, redirectTarget, setActiveScreen]);
 
   const handleModeChange = (mode: "login" | "signup") => {
     setAuthMode(mode);
@@ -85,7 +96,7 @@ export function AuthView() {
       }
 
       showToast("Welcome back! Logged in successfully ✨");
-      setActiveScreen("landing");
+      setActiveScreen("dashboard");
       router.push(redirectTarget);
     }
   };

@@ -114,7 +114,7 @@ export function LandingView() {
               }}
               className="w-full sm:w-auto shadow-md shadow-indigo-500/25 group text-base font-bold"
             >
-              Get Started Free
+              {user ? "Go to Dashboard" : "Get Started Free"}
               <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
             </Button>
             <Button
@@ -122,7 +122,7 @@ export function LandingView() {
               size="lg"
               onClick={() => {
                 if (user) {
-                  router.push("/");
+                  router.push("/dashboard/discover");
                 } else {
                   setAuthMode("login");
                   setActiveScreen("auth");
@@ -131,7 +131,7 @@ export function LandingView() {
               }}
               className="w-full sm:w-auto text-base font-semibold"
             >
-              Sign In
+              {user ? "Explore Skills" : "Sign In"}
             </Button>
           </div>
 
